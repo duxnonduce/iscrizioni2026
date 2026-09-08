@@ -121,18 +121,46 @@ create table if not exists iscrizioni (
   id uuid primary key default gen_random_uuid(),
   codice text unique not null,
 
+  -- Dati allievo
   atleta_nome text not null,
   atleta_cognome text not null,
+  atleta_codice_fiscale text,
   atleta_data_nascita date not null,
+  atleta_luogo_nascita text,
+  atleta_sesso text,
+  atleta_cittadinanza text,
+  atleta_indirizzo text,
+  atleta_comune text,
+  atleta_provincia text,
+  atleta_cap text,
   atleta_telefono text,
   atleta_email text,
   minorenne boolean not null default false,
+  preferenze_giorni text,
+  preferenze_orari text,
+  note_esigenze text,
 
+  -- Dati genitore/tutore (obbligatori se minorenne)
   genitore_nome text,
   genitore_cognome text,
+  genitore_codice_fiscale text,
+  genitore_data_nascita date,
+  genitore_luogo_nascita text,
+  genitore_indirizzo text,
+  genitore_comune text,
+  genitore_provincia text,
+  genitore_cap text,
   genitore_telefono text,
+  genitore_whatsapp text,
   genitore_email text,
+  genitore_rapporto text,
+  secondo_recapito_nome text,
+  secondo_recapito_telefono text,
+  emergenza_nome text,
+  emergenza_telefono text,
+  persone_autorizzate_ritiro text,
 
+  -- Corso
   corso_id uuid references corsi(id),
   listino_id uuid references listini(id),
   frequenza_settimanale int not null,
@@ -140,6 +168,36 @@ create table if not exists iscrizioni (
   importo_rata numeric not null,
   quota_iscrizione numeric not null,
   prezzo_totale numeric not null,
+
+  -- Dati per fatturazione
+  fatturazione_uguale_genitore boolean not null default true,
+  fatturazione_intestatario text,
+  fatturazione_codice_fiscale text,
+  fatturazione_partita_iva text,
+  fatturazione_indirizzo text,
+  fatturazione_comune text,
+  fatturazione_provincia text,
+  fatturazione_cap text,
+  fatturazione_email text,
+  fatturazione_pec text,
+  fatturazione_sdi text,
+  fatturazione_soggetto_pagante text,
+  fatturazione_metodo_pagamento text,
+  fatturazione_richiesta_documento boolean not null default false,
+
+  -- Consensi
+  consenso_dati_corretti boolean not null default false,
+  consenso_regolamento boolean not null default false,
+  consenso_privacy boolean not null default false,
+  consenso_autorizzazione boolean not null default false,
+  consenso_promozionale boolean not null default false,
+  consenso_foto_video boolean not null default false,
+  consenso_whatsapp_gruppi boolean not null default false,
+  versione_informativa text,
+
+  -- Dati tecnici della procedura online
+  ip_address text,
+  user_agent text,
 
   created_at timestamptz not null default now()
 );
