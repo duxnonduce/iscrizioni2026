@@ -13,6 +13,7 @@ type Listino = {
 
 type Corso = {
   id: string;
+  codice: string;
   nome: string;
   fascia_eta: string | null;
   durata_lezione: string | null;
@@ -303,7 +304,7 @@ export default function IscrizioneForm({
       emergenzaTelefono: form.emergenzaTelefono.trim(),
       personeAutorizzateRitiro: form.personeAutorizzateRitiro.trim(),
 
-      corsoId: form.corsoId,
+      corsoCodice: corsoSelezionato?.codice ?? "",
       frequenzaSettimanale: form.frequenza,
       numeroRate: listinoSelezionato?.numero_rate ?? 1,
 

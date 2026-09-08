@@ -11,7 +11,7 @@ export async function getDatiIniziali() {
 
   const { data: corsi, error: erroreCorsi } = await supabase
     .from("corsi")
-    .select("id, nome, fascia_eta, durata_lezione, listini(id, frequenza_settimanale, numero_rate, importo_rata)")
+    .select("id, codice, nome, fascia_eta, durata_lezione, listini(id, frequenza_settimanale, numero_rate, importo_rata)")
     .eq("attivo", true)
     .order("ordine", { ascending: true });
 
@@ -72,7 +72,7 @@ export type DatiAnagrafica = {
 
   // Corso
   listinoId?: string;
-  corsoId: string;
+  corsoCodice: string;
   frequenzaSettimanale: number;
   numeroRate: number;
 
@@ -106,10 +106,24 @@ export async function inviaIscrizione(dati: DatiAnagrafica) {
   const supabase = createAdminClient();
   const intestazioni = headers();
 
+  const { data: corso, error: erroreCorso } = await supabase
+    .from("corsi")
+    .select("id")
+    .eq("codice", dati.corsoCodice)
+    .single();
+
+  if (!corso) {
+    console.error("Errore recupero corso:", erroreCorso);
+    return {
+      ok: false as const,
+      errore: `Corso non trovato (codice: ${dati.corsoCodice}). ${erroreCorso?.message ?? ""}`,
+    };
+  }
+
   const { data: listino, error: erroreListino } = await supabase
     .from("listini")
     .select("id, corso_id, frequenza_settimanale, numero_rate, importo_rata")
-    .eq("corso_id", dati.corsoId)
+    .eq("corso_id", corso.id)
     .eq("frequenza_settimanale", dati.frequenzaSettimanale)
     .eq("numero_rate", dati.numeroRate)
     .single();
@@ -126,7 +140,7 @@ export async function inviaIscrizione(dati: DatiAnagrafica) {
     const dettaglio = erroreListino?.message || erroreImpostazioni?.message || "motivo sconosciuto";
     return {
       ok: false as const,
-      errore: `Corso o listino non trovati (${dettaglio}). corso: ${dati.corsoId || "vuoto"}, frequenza: ${dati.frequenzaSettimanale}, rate: ${dati.numeroRate}`,
+      errore: `Listino non trovato (${dettaglio}). corso: ${dati.corsoCodice}, frequenza: ${dati.frequenzaSettimanale}, rate: ${dati.numeroRate}`,
     };
   }
 
