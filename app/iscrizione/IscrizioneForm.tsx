@@ -1079,6 +1079,11 @@ function SchermataFinale({
           Conserva questo codice. Per completare la procedura premi il pulsante qui sotto.
         </p>
 
+        <p className="mt-4 rounded-lg bg-ace/40 p-3 text-xs leading-relaxed text-court-dark/80">
+          Ricordati di inviare via WhatsApp, insieme alla conferma, il <strong>certificato medico</strong>{" "}
+          (se già disponibile) ed eventuali altri documenti richiesti dalla segreteria.
+        </p>
+
         <a
           href={risultato.linkWhatsapp}
           className="mt-6 block rounded-full bg-court px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-court-dark"

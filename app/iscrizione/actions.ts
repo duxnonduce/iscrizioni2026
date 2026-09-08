@@ -270,7 +270,7 @@ export async function inviaIscrizione(dati: DatiAnagrafica) {
   const contattoPrincipale = dati.minorenne ? dati.genitoreTelefono : dati.atletaTelefono;
 
   const testoMessaggio = encodeURIComponent(
-    `Buongiorno, ho completato l'anagrafica per l'iscrizione a Micolani Tennis. Allievo: ${dati.atletaNome} ${dati.atletaCognome}. Il mio codice di riferimento è ${inserito.codice}. Desidero confermare la richiesta d'iscrizione.`
+    `Buongiorno, ho completato l'anagrafica per l'iscrizione a Micolani Tennis. Allievo: ${dati.atletaNome} ${dati.atletaCognome}. Il mio codice di riferimento è ${inserito.codice}. Desidero confermare la richiesta d'iscrizione. Invierò a breve anche il certificato medico (se disponibile) ed eventuali altri documenti richiesti.`
   );
 
   const numeroWhatsapp = impostazioni.whatsapp_numero.replace(/\D/g, "");
