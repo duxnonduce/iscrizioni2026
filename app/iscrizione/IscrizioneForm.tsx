@@ -303,7 +303,9 @@ export default function IscrizioneForm({
       emergenzaTelefono: form.emergenzaTelefono.trim(),
       personeAutorizzateRitiro: form.personeAutorizzateRitiro.trim(),
 
-      listinoId: form.listinoId,
+      corsoId: form.corsoId,
+      frequenzaSettimanale: form.frequenza,
+      numeroRate: listinoSelezionato?.numero_rate ?? 1,
 
       fatturazioneUgualeGenitore: form.fatturazioneUgualeGenitore,
       fatturazioneIntestatario: form.fatturazioneIntestatario.trim(),

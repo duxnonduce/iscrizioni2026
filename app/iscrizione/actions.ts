@@ -71,7 +71,10 @@ export type DatiAnagrafica = {
   personeAutorizzateRitiro?: string;
 
   // Corso
-  listinoId: string;
+  listinoId?: string;
+  corsoId: string;
+  frequenzaSettimanale: number;
+  numeroRate: number;
 
   // Fatturazione
   fatturazioneUgualeGenitore: boolean;
@@ -106,7 +109,9 @@ export async function inviaIscrizione(dati: DatiAnagrafica) {
   const { data: listino, error: erroreListino } = await supabase
     .from("listini")
     .select("id, corso_id, frequenza_settimanale, numero_rate, importo_rata")
-    .eq("id", dati.listinoId)
+    .eq("corso_id", dati.corsoId)
+    .eq("frequenza_settimanale", dati.frequenzaSettimanale)
+    .eq("numero_rate", dati.numeroRate)
     .single();
 
   const { data: impostazioni, error: erroreImpostazioni } = await supabase
@@ -121,7 +126,7 @@ export async function inviaIscrizione(dati: DatiAnagrafica) {
     const dettaglio = erroreListino?.message || erroreImpostazioni?.message || "motivo sconosciuto";
     return {
       ok: false as const,
-      errore: `Corso o listino non trovati (${dettaglio}). listinoId inviato: ${dati.listinoId || "vuoto"}`,
+      errore: `Corso o listino non trovati (${dettaglio}). corso: ${dati.corsoId || "vuoto"}, frequenza: ${dati.frequenzaSettimanale}, rate: ${dati.numeroRate}`,
     };
   }
 
