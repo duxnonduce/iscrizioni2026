@@ -98,6 +98,7 @@ const statoIniziale = {
   preferenzeGiorni: "",
   preferenzeOrari: "",
   noteEsigenze: "",
+  tagliaKit: "",
 
   // Fatturazione
   fatturazioneUgualeGenitore: true,
@@ -218,6 +219,9 @@ export default function IscrizioneForm({
       if (!form.listinoId) {
         return "Seleziona corso, frequenza e numero di rate.";
       }
+      if (!form.tagliaKit) {
+        return "Seleziona la taglia del kit abbigliamento.";
+      }
     }
     if (step === 4) {
       if (!form.fatturazioneUgualeGenitore && !form.fatturazioneIntestatario) {
@@ -307,6 +311,7 @@ export default function IscrizioneForm({
       corsoCodice: corsoSelezionato?.codice ?? "",
       frequenzaSettimanale: form.frequenza,
       numeroRate: listinoSelezionato?.numero_rate ?? 1,
+      tagliaKit: form.tagliaKit,
 
       fatturazioneUgualeGenitore: form.fatturazioneUgualeGenitore,
       fatturazioneIntestatario: form.fatturazioneIntestatario.trim(),
@@ -771,6 +776,32 @@ function StepCorso({
         Le preferenze indicate saranno valutate dalla segreteria e non costituiscono conferma del
         gruppo, dei giorni o degli orari.
       </p>
+
+      <Campo etichetta="Taglia kit abbigliamento">
+        <select className={classeInput} value={form.tagliaKit} onChange={(e) => aggiorna("tagliaKit", e.target.value)}>
+          <option value="">Seleziona</option>
+          <optgroup label="Taglie bambino">
+            <option value="5/6">5/6</option>
+            <option value="7/8">7/8</option>
+            <option value="9/10">9/10</option>
+            <option value="11/12">11/12</option>
+            <option value="13/14">13/14</option>
+            <option value="15/16">15/16</option>
+          </optgroup>
+          <optgroup label="Taglie adulto">
+            <option value="XXS">XXS</option>
+            <option value="XS">XS</option>
+            <option value="S">S</option>
+            <option value="M">M</option>
+            <option value="L">L</option>
+            <option value="XL">XL</option>
+            <option value="XXL">XXL</option>
+          </optgroup>
+        </select>
+      </Campo>
+      <p className="text-xs text-court-dark/50">
+        Il kit abbigliamento Adidas è incluso nella quota d'iscrizione.
+      </p>
     </div>
   );
 }
@@ -896,6 +927,7 @@ function StepConsensi({
         )}
         <RigaRiepilogo etichetta="Corso" valore={corso?.nome ?? "-"} />
         {listino && <RigaRiepilogo etichetta="Frequenza" valore={`${listino.frequenza_settimanale}x a settimana`} />}
+        {form.tagliaKit && <RigaRiepilogo etichetta="Taglia kit" valore={form.tagliaKit} />}
         {prezzoTotale !== null && <RigaRiepilogo etichetta="Totale" valore={formattaEuro(prezzoTotale)} />}
       </dl>
 

@@ -12,6 +12,7 @@ import {
   confermaIscrizione,
   eliminaIscrizione,
   aggiornaIscrizione,
+  riepilogoTaglie,
 } from "../actions";
 import { formattaEuro } from "@/lib/pricing";
 
@@ -35,6 +36,8 @@ function formattaOra(iso: string | null): string {
 function iniziali(nome: string, cognome: string): string {
   return `${(nome || "?")[0] ?? ""}${(cognome || "")[0] ?? ""}`.toUpperCase();
 }
+
+const ORDINE_TAGLIE = ["5/6", "7/8", "9/10", "11/12", "13/14", "15/16", "XXS", "XS", "S", "M", "L", "XL", "XXL"];
 
 function StatCard({
   etichetta,
@@ -68,17 +71,20 @@ export default function DashboardSegreteria() {
   const [importiModificati, setImportiModificati] = useState<Record<string, string>>({});
   const [salvataggio, setSalvataggio] = useState<string | null>(null);
   const [espansa, setEspansa] = useState<string | null>(null);
+  const [taglie, setTaglie] = useState<Record<string, number>>({});
 
   async function caricaTutto(termine = "") {
     setCaricamento(true);
-    const [risultatiIscrizioni, risultatiCorsi, quota] = await Promise.all([
+    const [risultatiIscrizioni, risultatiCorsi, quota, conteggioTaglie] = await Promise.all([
       cercaIscrizioni(termine),
       elencaCorsiConListini(),
       ottieniQuotaIscrizione(),
+      riepilogoTaglie(),
     ]);
     setIscrizioni(risultatiIscrizioni);
     setCorsi(risultatiCorsi);
     setQuotaIscrizione(quota);
+    setTaglie(conteggioTaglie);
     setCaricamento(false);
   }
 
@@ -220,6 +226,32 @@ export default function DashboardSegreteria() {
               ))}
             </div>
           </details>
+        </section>
+
+        <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-court/10">
+          <h2 className="font-display text-lg font-semibold text-court-dark">
+            Riepilogo taglie kit
+          </h2>
+          <p className="text-xs text-court-dark/50">Totale su tutte le iscrizioni ricevute</p>
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-7">
+            {ORDINE_TAGLIE.filter((t) => taglie[t]).map((t) => (
+              <div key={t} className="rounded-xl bg-chalk px-3 py-2.5 text-center">
+                <p className="font-display text-xl font-bold text-court-dark">{taglie[t]}</p>
+                <p className="text-xs text-court-dark/50">{t}</p>
+              </div>
+            ))}
+            {taglie["Non indicata"] && (
+              <div className="rounded-xl bg-amber-50 px-3 py-2.5 text-center">
+                <p className="font-display text-xl font-bold text-amber-700">
+                  {taglie["Non indicata"]}
+                </p>
+                <p className="text-xs text-amber-700/70">Non indicata</p>
+              </div>
+            )}
+            {Object.keys(taglie).length === 0 && (
+              <p className="col-span-full text-sm text-court-dark/40">Nessun dato ancora.</p>
+            )}
+          </div>
         </section>
 
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-court/10">
@@ -411,6 +443,7 @@ const CAMPI_CORSO: typeof CAMPI_TESTO = [
   { chiave: "importo_rata", etichetta: "Importo per rata" },
   { chiave: "quota_iscrizione", etichetta: "Quota iscrizione" },
   { chiave: "prezzo_totale", etichetta: "Prezzo totale" },
+  { chiave: "taglia_kit", etichetta: "Taglia kit" },
 ];
 
 const CAMPI_FATTURAZIONE: typeof CAMPI_TESTO = [
@@ -631,6 +664,7 @@ function DettaglioIscrizione({ i, onCambiato }: { i: Iscrizione; onCambiato: () 
                 <Riga etichetta="Importo per rata" valore={formattaEuro(r.importo_rata)} />
                 <Riga etichetta="Quota iscrizione" valore={formattaEuro(r.quota_iscrizione)} />
                 <Riga etichetta="Prezzo totale" valore={formattaEuro(r.prezzo_totale)} />
+                <Riga etichetta="Taglia kit" valore={r.taglia_kit} />
               </>
             )}
         </Sezione>

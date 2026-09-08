@@ -119,6 +119,7 @@ const CAMPI_MODIFICABILI = new Set([
   "genitore_rapporto", "secondo_recapito_nome", "secondo_recapito_telefono",
   "emergenza_nome", "emergenza_telefono", "persone_autorizzate_ritiro",
   "frequenza_settimanale", "numero_rate", "importo_rata", "quota_iscrizione", "prezzo_totale",
+  "taglia_kit",
   "fatturazione_uguale_genitore", "fatturazione_intestatario", "fatturazione_codice_fiscale",
   "fatturazione_partita_iva", "fatturazione_indirizzo", "fatturazione_comune",
   "fatturazione_provincia", "fatturazione_cap", "fatturazione_email", "fatturazione_pec",
@@ -144,4 +145,18 @@ export async function aggiornaIscrizione(id: string, campi: Record<string, unkno
   const { error } = await supabase.from("iscrizioni").update(aggiornamento).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/dashboard");
+}
+
+export async function riepilogoTaglie() {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.from("iscrizioni").select("taglia_kit");
+  if (error) throw new Error(error.message);
+
+  const conteggio: Record<string, number> = {};
+  for (const riga of data ?? []) {
+    const taglia = riga.taglia_kit || "Non indicata";
+    conteggio[taglia] = (conteggio[taglia] ?? 0) + 1;
+  }
+  return conteggio;
 }

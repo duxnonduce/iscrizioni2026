@@ -168,6 +168,7 @@ create table if not exists iscrizioni (
   importo_rata numeric not null,
   quota_iscrizione numeric not null,
   prezzo_totale numeric not null,
+  taglia_kit text,
 
   -- Dati per fatturazione
   fatturazione_uguale_genitore boolean not null default true,
@@ -213,6 +214,7 @@ create index if not exists idx_iscrizioni_created_at on iscrizioni (created_at d
 -- (installazione precedente), le aggiunge senza bisogno di ricreare tutto.
 alter table iscrizioni add column if not exists confermata boolean not null default false;
 alter table iscrizioni add column if not exists confermata_il timestamptz;
+alter table iscrizioni add column if not exists taglia_kit text;
 
 alter table impostazioni enable row level security;
 alter table corsi enable row level security;

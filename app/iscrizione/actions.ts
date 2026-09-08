@@ -75,6 +75,7 @@ export type DatiAnagrafica = {
   corsoCodice: string;
   frequenzaSettimanale: number;
   numeroRate: number;
+  tagliaKit: string;
 
   // Fatturazione
   fatturazioneUgualeGenitore: boolean;
@@ -218,6 +219,7 @@ export async function inviaIscrizione(dati: DatiAnagrafica) {
         importo_rata: listino.importo_rata,
         quota_iscrizione: impostazioni.quota_iscrizione,
         prezzo_totale: prezzoTotale,
+        taglia_kit: dati.tagliaKit || null,
 
         fatturazione_uguale_genitore: dati.fatturazioneUgualeGenitore,
         fatturazione_intestatario: dati.fatturazioneIntestatario || null,
