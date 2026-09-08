@@ -357,18 +357,21 @@ export default function IscrizioneForm({
   const indiceBarra = minorenne ? step : step > 2 ? step - 1 : step;
 
   return (
-    <div className="mx-auto max-w-lg px-5 py-8 sm:py-12">
-      <header className="mb-8 text-center">
-        <p className="font-display text-3xl font-bold tracking-tight text-court">
-          Entra in campo con Micolani Tennis
-        </p>
-        <p className="mt-1 text-sm text-court-dark/70">
+    <div>
+      <div className="bg-navy px-5 py-8 text-center">
+        <img
+          src="/logo-micolani.png"
+          alt="Micolani Tennis"
+          className="mx-auto h-20 w-auto"
+        />
+        <p className="mt-3 text-sm text-white/60">
           Modulo di pre-iscrizione — stagione 20{impostazioni.stagione_etichetta}/
           {Number(impostazioni.stagione_etichetta) + 1}
         </p>
-      </header>
+      </div>
 
-      <BarraAvanzamento step={indiceBarra} totale={stepMostratiTotali} />
+      <div className="mx-auto max-w-lg px-5 py-8 sm:py-12">
+        <BarraAvanzamento step={indiceBarra} totale={stepMostratiTotali} />
 
       <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-court/10">
         {step === 1 && <StepAllievo form={form} aggiorna={aggiorna} eta={eta} minorenne={minorenne} />}
@@ -439,6 +442,7 @@ export default function IscrizioneForm({
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }
@@ -1046,7 +1050,8 @@ function SchermataFinale({
   const [copiato, setCopiato] = useState(false);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-5 py-12 text-center">
+    <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center bg-navy px-5 py-12 text-center">
+      <img src="/logo-micolani.png" alt="Micolani Tennis" className="mx-auto mb-6 h-16 w-auto" />
       <div className="w-full rounded-2xl bg-white p-8 shadow-sm ring-1 ring-court/10">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-ace">
           <svg viewBox="0 0 24 24" className="h-7 w-7 text-court" fill="none">

@@ -6,9 +6,13 @@ const config: Config = {
     extend: {
       colors: {
         court: {
-          DEFAULT: "#0B3D91",
-          dark: "#062654",
-          light: "#3B6FC4",
+          DEFAULT: "#13275C",
+          dark: "#0A1633",
+          light: "#3B5FA4",
+        },
+        navy: {
+          DEFAULT: "#0A0F24",
+          deep: "#060A1A",
         },
         ace: "#D6E4FF",
         chalk: "#F7F9FC",

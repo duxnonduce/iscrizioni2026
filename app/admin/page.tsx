@@ -31,15 +31,15 @@ export default function PaginaLoginAdmin() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-chalk px-5">
+    <main className="flex min-h-screen items-center justify-center bg-navy px-5">
       <form
         onSubmit={accedi}
         className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-sm ring-1 ring-court/10"
       >
-        <h1 className="font-display text-2xl font-bold text-court-dark">
+        <img src="/logo-micolani.png" alt="Micolani Tennis" className="mx-auto mb-6 h-14 w-auto" />
+        <h1 className="text-center font-display text-2xl font-bold text-court-dark">
           Area segreteria
         </h1>
-        <p className="mt-1 text-sm text-court-dark/60">Micolani Tennis</p>
 
         <div className="mt-6 space-y-4">
           <label className="block">

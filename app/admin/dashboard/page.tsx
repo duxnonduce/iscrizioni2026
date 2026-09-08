@@ -97,11 +97,13 @@ export default function DashboardSegreteria() {
     <main className="min-h-screen bg-chalk px-5 py-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-2xl font-bold text-court-dark">
-              Area segreteria
-            </h1>
-            <p className="text-sm text-court-dark/60">Micolani Tennis</p>
+          <div className="flex items-center gap-3">
+            <img src="/logo-micolani.png" alt="Micolani Tennis" className="h-10 w-auto" />
+            <div>
+              <h1 className="font-display text-2xl font-bold text-court-dark">
+                Area segreteria
+              </h1>
+            </div>
           </div>
           <button
             onClick={esci}
