@@ -199,11 +199,20 @@ create table if not exists iscrizioni (
   ip_address text,
   user_agent text,
 
+  -- Conferma manuale da parte della segreteria
+  confermata boolean not null default false,
+  confermata_il timestamptz,
+
   created_at timestamptz not null default now()
 );
 
 create index if not exists idx_iscrizioni_codice on iscrizioni (codice);
 create index if not exists idx_iscrizioni_created_at on iscrizioni (created_at desc);
+
+-- Migrazione idempotente: se la tabella esisteva già senza queste colonne
+-- (installazione precedente), le aggiunge senza bisogno di ricreare tutto.
+alter table iscrizioni add column if not exists confermata boolean not null default false;
+alter table iscrizioni add column if not exists confermata_il timestamptz;
 
 alter table impostazioni enable row level security;
 alter table corsi enable row level security;

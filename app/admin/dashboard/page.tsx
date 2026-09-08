@@ -9,6 +9,9 @@ import {
   aggiornaImportoRata,
   ottieniQuotaIscrizione,
   aggiornaQuotaIscrizione,
+  confermaIscrizione,
+  eliminaIscrizione,
+  aggiornaIscrizione,
 } from "../actions";
 import { formattaEuro } from "@/lib/pricing";
 
@@ -202,19 +205,20 @@ export default function DashboardSegreteria() {
                   <th className="py-2 pr-3">Corso</th>
                   <th className="py-2 pr-3">Frequenza</th>
                   <th className="py-2 pr-3">Totale</th>
+                  <th className="py-2 pr-3">Stato</th>
                 </tr>
               </thead>
               <tbody>
                 {caricamento && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-court-dark/50">
+                    <td colSpan={7} className="py-6 text-center text-court-dark/50">
                       Caricamento…
                     </td>
                   </tr>
                 )}
                 {!caricamento && iscrizioni.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-court-dark/50">
+                    <td colSpan={7} className="py-6 text-center text-court-dark/50">
                       Nessuna anagrafica trovata.
                     </td>
                   </tr>
@@ -249,11 +253,22 @@ export default function DashboardSegreteria() {
                           </span>
                         )}
                       </td>
+                      <td className="py-2 pr-3">
+                        {(i as any).confermata ? (
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                            Confermata
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            Da confermare
+                          </span>
+                        )}
+                      </td>
                     </tr>
                     {espansa === i.id && (
                       <tr>
-                        <td colSpan={6} className="bg-chalk px-3 py-4">
-                          <DettaglioIscrizione i={i} />
+                        <td colSpan={7} className="bg-chalk px-3 py-4">
+                          <DettaglioIscrizione i={i} onCambiato={() => caricaTutto(ricerca)} />
                         </td>
                       </tr>
                     )}
@@ -291,96 +306,333 @@ function Riga({ etichetta, valore }: { etichetta: string; valore: any }) {
   );
 }
 
-function DettaglioIscrizione({ i }: { i: Iscrizione }) {
-  const r = i as any;
+const CAMPI_TESTO: Array<{ chiave: string; etichetta: string; tipo?: "text" | "date" | "checkbox" | "textarea" }> = [
+  { chiave: "atleta_nome", etichetta: "Nome" },
+  { chiave: "atleta_cognome", etichetta: "Cognome" },
+  { chiave: "atleta_codice_fiscale", etichetta: "Codice fiscale" },
+  { chiave: "atleta_data_nascita", etichetta: "Data di nascita", tipo: "date" },
+  { chiave: "atleta_luogo_nascita", etichetta: "Luogo di nascita" },
+  { chiave: "atleta_sesso", etichetta: "Sesso" },
+  { chiave: "atleta_cittadinanza", etichetta: "Cittadinanza" },
+  { chiave: "atleta_indirizzo", etichetta: "Indirizzo" },
+  { chiave: "atleta_comune", etichetta: "Comune" },
+  { chiave: "atleta_provincia", etichetta: "Provincia" },
+  { chiave: "atleta_cap", etichetta: "CAP" },
+  { chiave: "atleta_telefono", etichetta: "Telefono" },
+  { chiave: "atleta_email", etichetta: "Email" },
+  { chiave: "minorenne", etichetta: "Minorenne", tipo: "checkbox" },
+  { chiave: "preferenze_giorni", etichetta: "Preferenze giorni" },
+  { chiave: "preferenze_orari", etichetta: "Preferenze orari" },
+  { chiave: "note_esigenze", etichetta: "Esigenze", tipo: "textarea" },
+];
+
+const CAMPI_GENITORE: typeof CAMPI_TESTO = [
+  { chiave: "genitore_nome", etichetta: "Nome" },
+  { chiave: "genitore_cognome", etichetta: "Cognome" },
+  { chiave: "genitore_rapporto", etichetta: "Rapporto" },
+  { chiave: "genitore_codice_fiscale", etichetta: "Codice fiscale" },
+  { chiave: "genitore_data_nascita", etichetta: "Data di nascita", tipo: "date" },
+  { chiave: "genitore_luogo_nascita", etichetta: "Luogo di nascita" },
+  { chiave: "genitore_indirizzo", etichetta: "Indirizzo" },
+  { chiave: "genitore_comune", etichetta: "Comune" },
+  { chiave: "genitore_provincia", etichetta: "Provincia" },
+  { chiave: "genitore_cap", etichetta: "CAP" },
+  { chiave: "genitore_telefono", etichetta: "Telefono" },
+  { chiave: "genitore_whatsapp", etichetta: "WhatsApp" },
+  { chiave: "genitore_email", etichetta: "Email" },
+  { chiave: "secondo_recapito_nome", etichetta: "Secondo referente" },
+  { chiave: "secondo_recapito_telefono", etichetta: "Tel. secondo referente" },
+  { chiave: "emergenza_nome", etichetta: "Contatto emergenza" },
+  { chiave: "emergenza_telefono", etichetta: "Tel. emergenza" },
+  { chiave: "persone_autorizzate_ritiro", etichetta: "Autorizzati al ritiro", tipo: "textarea" },
+];
+
+const CAMPI_CORSO: typeof CAMPI_TESTO = [
+  { chiave: "frequenza_settimanale", etichetta: "Frequenza settimanale" },
+  { chiave: "numero_rate", etichetta: "Numero rate" },
+  { chiave: "importo_rata", etichetta: "Importo per rata" },
+  { chiave: "quota_iscrizione", etichetta: "Quota iscrizione" },
+  { chiave: "prezzo_totale", etichetta: "Prezzo totale" },
+];
+
+const CAMPI_FATTURAZIONE: typeof CAMPI_TESTO = [
+  { chiave: "fatturazione_uguale_genitore", etichetta: "Uguale al genitore/allievo", tipo: "checkbox" },
+  { chiave: "fatturazione_intestatario", etichetta: "Intestatario" },
+  { chiave: "fatturazione_codice_fiscale", etichetta: "Codice fiscale" },
+  { chiave: "fatturazione_partita_iva", etichetta: "Partita IVA" },
+  { chiave: "fatturazione_indirizzo", etichetta: "Indirizzo" },
+  { chiave: "fatturazione_comune", etichetta: "Comune" },
+  { chiave: "fatturazione_provincia", etichetta: "Provincia" },
+  { chiave: "fatturazione_cap", etichetta: "CAP" },
+  { chiave: "fatturazione_email", etichetta: "Email" },
+  { chiave: "fatturazione_pec", etichetta: "PEC" },
+  { chiave: "fatturazione_sdi", etichetta: "Codice SDI" },
+  { chiave: "fatturazione_soggetto_pagante", etichetta: "Soggetto pagante" },
+  { chiave: "fatturazione_metodo_pagamento", etichetta: "Metodo di pagamento" },
+  { chiave: "fatturazione_richiesta_documento", etichetta: "Richiede documento fiscale", tipo: "checkbox" },
+];
+
+const CAMPI_CONSENSI: typeof CAMPI_TESTO = [
+  { chiave: "consenso_dati_corretti", etichetta: "Dati corretti", tipo: "checkbox" },
+  { chiave: "consenso_regolamento", etichetta: "Regolamento", tipo: "checkbox" },
+  { chiave: "consenso_privacy", etichetta: "Privacy", tipo: "checkbox" },
+  { chiave: "consenso_autorizzazione", etichetta: "Autorizzazione", tipo: "checkbox" },
+  { chiave: "consenso_promozionale", etichetta: "Promozionale", tipo: "checkbox" },
+  { chiave: "consenso_foto_video", etichetta: "Foto/video", tipo: "checkbox" },
+  { chiave: "consenso_whatsapp_gruppi", etichetta: "Gruppi WhatsApp", tipo: "checkbox" },
+];
+
+const classeInputPiccolo = "w-full rounded-lg border border-court/20 px-2 py-1.5 text-sm";
+
+function CampoModifica({
+  campo,
+  valore,
+  onChange,
+}: {
+  campo: { chiave: string; etichetta: string; tipo?: "text" | "date" | "checkbox" | "textarea" };
+  valore: any;
+  onChange: (v: any) => void;
+}) {
+  if (campo.tipo === "checkbox") {
+    return (
+      <label className="flex items-center justify-between gap-3 text-sm">
+        <span className="text-court-dark/60">{campo.etichetta}</span>
+        <input type="checkbox" checked={!!valore} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4" />
+      </label>
+    );
+  }
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-      <Sezione titolo="Allievo">
-        <Riga etichetta="Nome" valore={`${r.atleta_nome} ${r.atleta_cognome}`} />
-        <Riga etichetta="Codice fiscale" valore={r.atleta_codice_fiscale} />
-        <Riga etichetta="Data di nascita" valore={formattaData(r.atleta_data_nascita)} />
-        <Riga etichetta="Luogo di nascita" valore={r.atleta_luogo_nascita} />
-        <Riga etichetta="Sesso" valore={r.atleta_sesso} />
-        <Riga etichetta="Cittadinanza" valore={r.atleta_cittadinanza} />
-        <Riga
-          etichetta="Residenza"
-          valore={[r.atleta_indirizzo, r.atleta_comune, r.atleta_provincia, r.atleta_cap]
-            .filter(Boolean)
-            .join(", ")}
+    <label className="block text-sm">
+      <span className="mb-1 block text-court-dark/60">{campo.etichetta}</span>
+      {campo.tipo === "textarea" ? (
+        <textarea className={classeInputPiccolo} rows={2} value={valore ?? ""} onChange={(e) => onChange(e.target.value)} />
+      ) : (
+        <input
+          type={campo.tipo === "date" ? "date" : "text"}
+          className={classeInputPiccolo}
+          value={valore ?? ""}
+          onChange={(e) => onChange(e.target.value)}
         />
-        <Riga etichetta="Telefono" valore={r.atleta_telefono} />
-        <Riga etichetta="Email" valore={r.atleta_email} />
-        <Riga etichetta="Preferenze giorni" valore={r.preferenze_giorni} />
-        <Riga etichetta="Preferenze orari" valore={r.preferenze_orari} />
-        <Riga etichetta="Esigenze" valore={r.note_esigenze} />
-      </Sezione>
-
-      {r.minorenne && (
-        <Sezione titolo="Genitore/tutore">
-          <Riga etichetta="Nome" valore={`${r.genitore_nome ?? ""} ${r.genitore_cognome ?? ""}`} />
-          <Riga etichetta="Rapporto" valore={r.genitore_rapporto} />
-          <Riga etichetta="Codice fiscale" valore={r.genitore_codice_fiscale} />
-          <Riga etichetta="Data di nascita" valore={formattaData(r.genitore_data_nascita)} />
-          <Riga etichetta="Luogo di nascita" valore={r.genitore_luogo_nascita} />
-          <Riga
-            etichetta="Residenza"
-            valore={[r.genitore_indirizzo, r.genitore_comune, r.genitore_provincia, r.genitore_cap]
-              .filter(Boolean)
-              .join(", ")}
-          />
-          <Riga etichetta="Telefono" valore={r.genitore_telefono} />
-          <Riga etichetta="WhatsApp" valore={r.genitore_whatsapp} />
-          <Riga etichetta="Email" valore={r.genitore_email} />
-          <Riga etichetta="Secondo referente" valore={r.secondo_recapito_nome} />
-          <Riga etichetta="Tel. secondo referente" valore={r.secondo_recapito_telefono} />
-          <Riga etichetta="Contatto emergenza" valore={r.emergenza_nome} />
-          <Riga etichetta="Tel. emergenza" valore={r.emergenza_telefono} />
-          <Riga etichetta="Autorizzati al ritiro" valore={r.persone_autorizzate_ritiro} />
-        </Sezione>
       )}
+    </label>
+  );
+}
 
-      <Sezione titolo="Fatturazione">
-        <Riga
-          etichetta="Uguale al genitore/allievo"
-          valore={r.fatturazione_uguale_genitore}
-        />
-        {!r.fatturazione_uguale_genitore && (
+function DettaglioIscrizione({ i, onCambiato }: { i: Iscrizione; onCambiato: () => void }) {
+  const r = i as any;
+  const [modificaAttiva, setModificaAttiva] = useState(false);
+  const [bozza, setBozza] = useState<Record<string, any>>({});
+  const [azioneInCorso, setAzioneInCorso] = useState(false);
+
+  function iniziaModifica() {
+    const iniziale: Record<string, any> = {};
+    for (const campo of [...CAMPI_TESTO, ...CAMPI_GENITORE, ...CAMPI_CORSO, ...CAMPI_FATTURAZIONE, ...CAMPI_CONSENSI]) {
+      iniziale[campo.chiave] = r[campo.chiave];
+    }
+    setBozza(iniziale);
+    setModificaAttiva(true);
+  }
+
+  async function salvaModifiche() {
+    setAzioneInCorso(true);
+    await aggiornaIscrizione(r.id, bozza);
+    setAzioneInCorso(false);
+    setModificaAttiva(false);
+    onCambiato();
+  }
+
+  async function toggleConferma() {
+    setAzioneInCorso(true);
+    await confermaIscrizione(r.id, !r.confermata);
+    setAzioneInCorso(false);
+    onCambiato();
+  }
+
+  async function elimina() {
+    if (!confirm(`Eliminare definitivamente l'iscrizione ${r.codice}? L'operazione non è reversibile.`)) return;
+    setAzioneInCorso(true);
+    await eliminaIscrizione(r.id);
+    setAzioneInCorso(false);
+    onCambiato();
+  }
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-court/10 pb-4">
+        <button
+          onClick={toggleConferma}
+          disabled={azioneInCorso}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium disabled:opacity-60 ${
+            r.confermata ? "border border-court/20 text-court-dark hover:bg-white" : "bg-court text-white hover:bg-court-dark"
+          }`}
+        >
+          {r.confermata ? "Annulla conferma" : "Conferma iscrizione"}
+        </button>
+
+        {!modificaAttiva ? (
+          <button
+            onClick={iniziaModifica}
+            className="rounded-full border border-court/20 px-4 py-1.5 text-sm font-medium text-court-dark hover:bg-white"
+          >
+            Modifica
+          </button>
+        ) : (
           <>
-            <Riga etichetta="Intestatario" valore={r.fatturazione_intestatario} />
-            <Riga etichetta="Codice fiscale" valore={r.fatturazione_codice_fiscale} />
-            <Riga etichetta="Partita IVA" valore={r.fatturazione_partita_iva} />
-            <Riga
-              etichetta="Indirizzo"
-              valore={[r.fatturazione_indirizzo, r.fatturazione_comune, r.fatturazione_provincia, r.fatturazione_cap]
-                .filter(Boolean)
-                .join(", ")}
-            />
-            <Riga etichetta="Email" valore={r.fatturazione_email} />
-            <Riga etichetta="PEC" valore={r.fatturazione_pec} />
-            <Riga etichetta="Codice SDI" valore={r.fatturazione_sdi} />
-            <Riga etichetta="Soggetto pagante" valore={r.fatturazione_soggetto_pagante} />
+            <button
+              onClick={salvaModifiche}
+              disabled={azioneInCorso}
+              className="rounded-full bg-court px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {azioneInCorso ? "Salvo…" : "Salva modifiche"}
+            </button>
+            <button
+              onClick={() => setModificaAttiva(false)}
+              className="rounded-full border border-court/20 px-4 py-1.5 text-sm font-medium text-court-dark hover:bg-white"
+            >
+              Annulla
+            </button>
           </>
         )}
-        <Riga etichetta="Metodo di pagamento" valore={r.fatturazione_metodo_pagamento} />
-        <Riga etichetta="Richiede documento fiscale" valore={r.fatturazione_richiesta_documento} />
-      </Sezione>
 
-      <Sezione titolo="Consensi">
-        <Riga etichetta="Dati corretti" valore={r.consenso_dati_corretti} />
-        <Riga etichetta="Regolamento" valore={r.consenso_regolamento} />
-        <Riga etichetta="Privacy" valore={r.consenso_privacy} />
-        <Riga etichetta="Autorizzazione" valore={r.consenso_autorizzazione} />
-        <Riga etichetta="Promozionale" valore={r.consenso_promozionale} />
-        <Riga etichetta="Foto/video" valore={r.consenso_foto_video} />
-        <Riga etichetta="Gruppi WhatsApp" valore={r.consenso_whatsapp_gruppi} />
-        <Riga etichetta="Versione informativa" valore={r.versione_informativa} />
-      </Sezione>
+        <button
+          onClick={elimina}
+          disabled={azioneInCorso}
+          className="ml-auto rounded-full border border-red-200 px-4 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+        >
+          Elimina
+        </button>
+      </div>
 
-      <Sezione titolo="Dati tecnici">
-        <Riga etichetta="Inviata il" valore={formattaOra(r.created_at)} />
-        <Riga etichetta="Indirizzo IP" valore={r.ip_address} />
-        <Riga etichetta="Dispositivo/browser" valore={r.user_agent} />
-      </Sezione>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <Sezione titolo="Allievo">
+          {modificaAttiva
+            ? CAMPI_TESTO.map((c) => (
+                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
+              ))
+            : (
+              <>
+                <Riga etichetta="Nome" valore={`${r.atleta_nome} ${r.atleta_cognome}`} />
+                <Riga etichetta="Codice fiscale" valore={r.atleta_codice_fiscale} />
+                <Riga etichetta="Data di nascita" valore={formattaData(r.atleta_data_nascita)} />
+                <Riga etichetta="Luogo di nascita" valore={r.atleta_luogo_nascita} />
+                <Riga etichetta="Sesso" valore={r.atleta_sesso} />
+                <Riga etichetta="Cittadinanza" valore={r.atleta_cittadinanza} />
+                <Riga
+                  etichetta="Residenza"
+                  valore={[r.atleta_indirizzo, r.atleta_comune, r.atleta_provincia, r.atleta_cap].filter(Boolean).join(", ")}
+                />
+                <Riga etichetta="Telefono" valore={r.atleta_telefono} />
+                <Riga etichetta="Email" valore={r.atleta_email} />
+                <Riga etichetta="Preferenze giorni" valore={r.preferenze_giorni} />
+                <Riga etichetta="Preferenze orari" valore={r.preferenze_orari} />
+                <Riga etichetta="Esigenze" valore={r.note_esigenze} />
+              </>
+            )}
+        </Sezione>
+
+        {r.minorenne && (
+          <Sezione titolo="Genitore/tutore">
+            {modificaAttiva
+              ? CAMPI_GENITORE.map((c) => (
+                  <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
+                ))
+              : (
+                <>
+                  <Riga etichetta="Nome" valore={`${r.genitore_nome ?? ""} ${r.genitore_cognome ?? ""}`} />
+                  <Riga etichetta="Rapporto" valore={r.genitore_rapporto} />
+                  <Riga etichetta="Codice fiscale" valore={r.genitore_codice_fiscale} />
+                  <Riga etichetta="Data di nascita" valore={formattaData(r.genitore_data_nascita)} />
+                  <Riga etichetta="Luogo di nascita" valore={r.genitore_luogo_nascita} />
+                  <Riga
+                    etichetta="Residenza"
+                    valore={[r.genitore_indirizzo, r.genitore_comune, r.genitore_provincia, r.genitore_cap].filter(Boolean).join(", ")}
+                  />
+                  <Riga etichetta="Telefono" valore={r.genitore_telefono} />
+                  <Riga etichetta="WhatsApp" valore={r.genitore_whatsapp} />
+                  <Riga etichetta="Email" valore={r.genitore_email} />
+                  <Riga etichetta="Secondo referente" valore={r.secondo_recapito_nome} />
+                  <Riga etichetta="Tel. secondo referente" valore={r.secondo_recapito_telefono} />
+                  <Riga etichetta="Contatto emergenza" valore={r.emergenza_nome} />
+                  <Riga etichetta="Tel. emergenza" valore={r.emergenza_telefono} />
+                  <Riga etichetta="Autorizzati al ritiro" valore={r.persone_autorizzate_ritiro} />
+                </>
+              )}
+          </Sezione>
+        )}
+
+        <Sezione titolo="Corso e prezzo">
+          {modificaAttiva
+            ? CAMPI_CORSO.map((c) => (
+                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
+              ))
+            : (
+              <>
+                <Riga etichetta="Corso" valore={r.corsi?.nome} />
+                <Riga etichetta="Frequenza settimanale" valore={`${r.frequenza_settimanale}x/sett.`} />
+                <Riga etichetta="Numero rate" valore={r.numero_rate} />
+                <Riga etichetta="Importo per rata" valore={formattaEuro(r.importo_rata)} />
+                <Riga etichetta="Quota iscrizione" valore={formattaEuro(r.quota_iscrizione)} />
+                <Riga etichetta="Prezzo totale" valore={formattaEuro(r.prezzo_totale)} />
+              </>
+            )}
+        </Sezione>
+
+        <Sezione titolo="Fatturazione">
+          {modificaAttiva
+            ? CAMPI_FATTURAZIONE.map((c) => (
+                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
+              ))
+            : (
+              <>
+                <Riga etichetta="Uguale al genitore/allievo" valore={r.fatturazione_uguale_genitore} />
+                {!r.fatturazione_uguale_genitore && (
+                  <>
+                    <Riga etichetta="Intestatario" valore={r.fatturazione_intestatario} />
+                    <Riga etichetta="Codice fiscale" valore={r.fatturazione_codice_fiscale} />
+                    <Riga etichetta="Partita IVA" valore={r.fatturazione_partita_iva} />
+                    <Riga
+                      etichetta="Indirizzo"
+                      valore={[r.fatturazione_indirizzo, r.fatturazione_comune, r.fatturazione_provincia, r.fatturazione_cap].filter(Boolean).join(", ")}
+                    />
+                    <Riga etichetta="Email" valore={r.fatturazione_email} />
+                    <Riga etichetta="PEC" valore={r.fatturazione_pec} />
+                    <Riga etichetta="Codice SDI" valore={r.fatturazione_sdi} />
+                    <Riga etichetta="Soggetto pagante" valore={r.fatturazione_soggetto_pagante} />
+                  </>
+                )}
+                <Riga etichetta="Metodo di pagamento" valore={r.fatturazione_metodo_pagamento} />
+                <Riga etichetta="Richiede documento fiscale" valore={r.fatturazione_richiesta_documento} />
+              </>
+            )}
+        </Sezione>
+
+        <Sezione titolo="Consensi">
+          {modificaAttiva
+            ? CAMPI_CONSENSI.map((c) => (
+                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
+              ))
+            : (
+              <>
+                <Riga etichetta="Dati corretti" valore={r.consenso_dati_corretti} />
+                <Riga etichetta="Regolamento" valore={r.consenso_regolamento} />
+                <Riga etichetta="Privacy" valore={r.consenso_privacy} />
+                <Riga etichetta="Autorizzazione" valore={r.consenso_autorizzazione} />
+                <Riga etichetta="Promozionale" valore={r.consenso_promozionale} />
+                <Riga etichetta="Foto/video" valore={r.consenso_foto_video} />
+                <Riga etichetta="Gruppi WhatsApp" valore={r.consenso_whatsapp_gruppi} />
+                <Riga etichetta="Versione informativa" valore={r.versione_informativa} />
+              </>
+            )}
+        </Sezione>
+
+        <Sezione titolo="Dati tecnici">
+          <Riga etichetta="Inviata il" valore={formattaOra(r.created_at)} />
+          <Riga etichetta="Confermata" valore={r.confermata} />
+          <Riga etichetta="Confermata il" valore={formattaOra(r.confermata_il)} />
+          <Riga etichetta="Indirizzo IP" valore={r.ip_address} />
+          <Riga etichetta="Dispositivo/browser" valore={r.user_agent} />
+        </Sezione>
+      </div>
     </div>
   );
 }
