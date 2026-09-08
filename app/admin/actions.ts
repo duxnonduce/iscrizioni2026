@@ -20,9 +20,7 @@ export async function cercaIscrizioni(ricerca: string) {
 
   let query = supabase
     .from("iscrizioni")
-    .select(
-      "id, codice, atleta_nome, atleta_cognome, atleta_telefono, genitore_nome, genitore_cognome, genitore_telefono, minorenne, frequenza_settimanale, numero_rate, importo_rata, quota_iscrizione, prezzo_totale, created_at, corsi(nome)"
-    )
+    .select("*, corsi(nome)")
     .order("created_at", { ascending: false })
     .limit(200);
 

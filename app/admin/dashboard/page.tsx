@@ -15,6 +15,20 @@ import { formattaEuro } from "@/lib/pricing";
 type Iscrizione = Awaited<ReturnType<typeof cercaIscrizioni>>[number];
 type Corso = Awaited<ReturnType<typeof elencaCorsiConListini>>[number];
 
+function formattaData(iso: string | null): string {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleDateString("it-IT", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function formattaOra(iso: string | null): string {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleString("it-IT");
+}
+
 export default function DashboardSegreteria() {
   const router = useRouter();
   const supabase = createClient();
@@ -27,6 +41,7 @@ export default function DashboardSegreteria() {
   const [caricamento, setCaricamento] = useState(true);
   const [importiModificati, setImportiModificati] = useState<Record<string, string>>({});
   const [salvataggio, setSalvataggio] = useState<string | null>(null);
+  const [espansa, setEspansa] = useState<string | null>(null);
 
   async function caricaTutto(termine = "") {
     setCaricamento(true);
@@ -113,9 +128,6 @@ export default function DashboardSegreteria() {
             >
               {salvataggio === "quota" ? "Salvo…" : "Salva"}
             </button>
-            <span className="text-sm text-court-dark/50">
-              si applica a tutte le iscrizioni, in aggiunta al corso
-            </span>
           </div>
         </section>
 
@@ -174,6 +186,10 @@ export default function DashboardSegreteria() {
             </form>
           </div>
 
+          <p className="mt-2 text-xs text-court-dark/50">
+            Clicca su una riga per vedere tutti i dati raccolti.
+          </p>
+
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
@@ -202,31 +218,44 @@ export default function DashboardSegreteria() {
                   </tr>
                 )}
                 {iscrizioni.map((i) => (
-                  <tr key={i.id} className="border-b border-court/5">
-                    <td className="py-2 pr-3 font-medium text-court">{i.codice}</td>
-                    <td className="py-2 pr-3">
-                      {i.atleta_nome} {i.atleta_cognome}
-                      {i.minorenne && (
-                        <span className="ml-1 rounded-full bg-ace px-2 py-0.5 text-xs text-court-dark">
-                          minorenne
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {i.minorenne ? i.genitore_telefono : i.atleta_telefono}
-                    </td>
-                    <td className="py-2 pr-3">{(i as any).corsi?.nome ?? "-"}</td>
-                    <td className="py-2 pr-3">{i.frequenza_settimanale}x/sett.</td>
-                    <td className="py-2 pr-3">
-                      {formattaEuro(i.prezzo_totale)}
-                      {i.numero_rate > 1 && (
-                        <span className="text-court-dark/50">
-                          {" "}
-                          ({i.numero_rate}×{formattaEuro(i.importo_rata)} + quota)
-                        </span>
-                      )}
-                    </td>
-                  </tr>
+                  <>
+                    <tr
+                      key={i.id}
+                      onClick={() => setEspansa(espansa === i.id ? null : i.id)}
+                      className="cursor-pointer border-b border-court/5 hover:bg-chalk"
+                    >
+                      <td className="py-2 pr-3 font-medium text-court">{i.codice}</td>
+                      <td className="py-2 pr-3">
+                        {i.atleta_nome} {i.atleta_cognome}
+                        {i.minorenne && (
+                          <span className="ml-1 rounded-full bg-ace px-2 py-0.5 text-xs text-court-dark">
+                            minorenne
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {i.minorenne ? i.genitore_telefono : i.atleta_telefono}
+                      </td>
+                      <td className="py-2 pr-3">{(i as any).corsi?.nome ?? "-"}</td>
+                      <td className="py-2 pr-3">{i.frequenza_settimanale}x/sett.</td>
+                      <td className="py-2 pr-3">
+                        {formattaEuro(i.prezzo_totale)}
+                        {i.numero_rate > 1 && (
+                          <span className="text-court-dark/50">
+                            {" "}
+                            ({i.numero_rate}×{formattaEuro(i.importo_rata)} + quota)
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                    {espansa === i.id && (
+                      <tr>
+                        <td colSpan={6} className="bg-chalk px-3 py-4">
+                          <DettaglioIscrizione i={i} />
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
               </tbody>
             </table>
@@ -234,5 +263,122 @@ export default function DashboardSegreteria() {
         </section>
       </div>
     </main>
+  );
+}
+
+function Sezione({ titolo, children }: { titolo: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-court-dark/50">
+        {titolo}
+      </h4>
+      <dl className="space-y-1 text-sm">{children}</dl>
+    </div>
+  );
+}
+
+function Riga({ etichetta, valore }: { etichetta: string; valore: any }) {
+  if (valore === null || valore === undefined || valore === "") return null;
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-court-dark/50">{etichetta}</dt>
+      <dd className="text-right font-medium text-court-dark">
+        {typeof valore === "boolean" ? (valore ? "Sì" : "No") : String(valore)}
+      </dd>
+    </div>
+  );
+}
+
+function DettaglioIscrizione({ i }: { i: Iscrizione }) {
+  const r = i as any;
+  return (
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <Sezione titolo="Allievo">
+        <Riga etichetta="Nome" valore={`${r.atleta_nome} ${r.atleta_cognome}`} />
+        <Riga etichetta="Codice fiscale" valore={r.atleta_codice_fiscale} />
+        <Riga etichetta="Data di nascita" valore={formattaData(r.atleta_data_nascita)} />
+        <Riga etichetta="Luogo di nascita" valore={r.atleta_luogo_nascita} />
+        <Riga etichetta="Sesso" valore={r.atleta_sesso} />
+        <Riga etichetta="Cittadinanza" valore={r.atleta_cittadinanza} />
+        <Riga
+          etichetta="Residenza"
+          valore={[r.atleta_indirizzo, r.atleta_comune, r.atleta_provincia, r.atleta_cap]
+            .filter(Boolean)
+            .join(", ")}
+        />
+        <Riga etichetta="Telefono" valore={r.atleta_telefono} />
+        <Riga etichetta="Email" valore={r.atleta_email} />
+        <Riga etichetta="Preferenze giorni" valore={r.preferenze_giorni} />
+        <Riga etichetta="Preferenze orari" valore={r.preferenze_orari} />
+        <Riga etichetta="Esigenze" valore={r.note_esigenze} />
+      </Sezione>
+
+      {r.minorenne && (
+        <Sezione titolo="Genitore/tutore">
+          <Riga etichetta="Nome" valore={`${r.genitore_nome ?? ""} ${r.genitore_cognome ?? ""}`} />
+          <Riga etichetta="Rapporto" valore={r.genitore_rapporto} />
+          <Riga etichetta="Codice fiscale" valore={r.genitore_codice_fiscale} />
+          <Riga etichetta="Data di nascita" valore={formattaData(r.genitore_data_nascita)} />
+          <Riga etichetta="Luogo di nascita" valore={r.genitore_luogo_nascita} />
+          <Riga
+            etichetta="Residenza"
+            valore={[r.genitore_indirizzo, r.genitore_comune, r.genitore_provincia, r.genitore_cap]
+              .filter(Boolean)
+              .join(", ")}
+          />
+          <Riga etichetta="Telefono" valore={r.genitore_telefono} />
+          <Riga etichetta="WhatsApp" valore={r.genitore_whatsapp} />
+          <Riga etichetta="Email" valore={r.genitore_email} />
+          <Riga etichetta="Secondo referente" valore={r.secondo_recapito_nome} />
+          <Riga etichetta="Tel. secondo referente" valore={r.secondo_recapito_telefono} />
+          <Riga etichetta="Contatto emergenza" valore={r.emergenza_nome} />
+          <Riga etichetta="Tel. emergenza" valore={r.emergenza_telefono} />
+          <Riga etichetta="Autorizzati al ritiro" valore={r.persone_autorizzate_ritiro} />
+        </Sezione>
+      )}
+
+      <Sezione titolo="Fatturazione">
+        <Riga
+          etichetta="Uguale al genitore/allievo"
+          valore={r.fatturazione_uguale_genitore}
+        />
+        {!r.fatturazione_uguale_genitore && (
+          <>
+            <Riga etichetta="Intestatario" valore={r.fatturazione_intestatario} />
+            <Riga etichetta="Codice fiscale" valore={r.fatturazione_codice_fiscale} />
+            <Riga etichetta="Partita IVA" valore={r.fatturazione_partita_iva} />
+            <Riga
+              etichetta="Indirizzo"
+              valore={[r.fatturazione_indirizzo, r.fatturazione_comune, r.fatturazione_provincia, r.fatturazione_cap]
+                .filter(Boolean)
+                .join(", ")}
+            />
+            <Riga etichetta="Email" valore={r.fatturazione_email} />
+            <Riga etichetta="PEC" valore={r.fatturazione_pec} />
+            <Riga etichetta="Codice SDI" valore={r.fatturazione_sdi} />
+            <Riga etichetta="Soggetto pagante" valore={r.fatturazione_soggetto_pagante} />
+          </>
+        )}
+        <Riga etichetta="Metodo di pagamento" valore={r.fatturazione_metodo_pagamento} />
+        <Riga etichetta="Richiede documento fiscale" valore={r.fatturazione_richiesta_documento} />
+      </Sezione>
+
+      <Sezione titolo="Consensi">
+        <Riga etichetta="Dati corretti" valore={r.consenso_dati_corretti} />
+        <Riga etichetta="Regolamento" valore={r.consenso_regolamento} />
+        <Riga etichetta="Privacy" valore={r.consenso_privacy} />
+        <Riga etichetta="Autorizzazione" valore={r.consenso_autorizzazione} />
+        <Riga etichetta="Promozionale" valore={r.consenso_promozionale} />
+        <Riga etichetta="Foto/video" valore={r.consenso_foto_video} />
+        <Riga etichetta="Gruppi WhatsApp" valore={r.consenso_whatsapp_gruppi} />
+        <Riga etichetta="Versione informativa" valore={r.versione_informativa} />
+      </Sezione>
+
+      <Sezione titolo="Dati tecnici">
+        <Riga etichetta="Inviata il" valore={formattaOra(r.created_at)} />
+        <Riga etichetta="Indirizzo IP" valore={r.ip_address} />
+        <Riga etichetta="Dispositivo/browser" valore={r.user_agent} />
+      </Sezione>
+    </div>
   );
 }
