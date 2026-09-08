@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&display=swap');
+
+html, body {
+  background-color: #F7F9FC;
+  color: #0B1B33;
+}
+
+.step-progress-dot {
+  transition: all 0.25s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(11, 61, 145, 0.25);
+  border-color: #0B3D91;
+}
