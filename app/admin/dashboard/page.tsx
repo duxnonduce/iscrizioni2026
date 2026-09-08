@@ -32,6 +32,29 @@ function formattaOra(iso: string | null): string {
   return new Date(iso).toLocaleString("it-IT");
 }
 
+function iniziali(nome: string, cognome: string): string {
+  return `${(nome || "?")[0] ?? ""}${(cognome || "")[0] ?? ""}`.toUpperCase();
+}
+
+function StatCard({
+  etichetta,
+  valore,
+  tono = "default",
+}: {
+  etichetta: string;
+  valore: string | number;
+  tono?: "default" | "verde" | "ambra";
+}) {
+  const coloreValore =
+    tono === "verde" ? "text-emerald-600" : tono === "ambra" ? "text-amber-600" : "text-court-dark";
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-court/10">
+      <p className="text-xs font-medium uppercase tracking-wide text-court-dark/40">{etichetta}</p>
+      <p className={`mt-1 font-display text-2xl font-bold ${coloreValore}`}>{valore}</p>
+    </div>
+  );
+}
+
 export default function DashboardSegreteria() {
   const router = useRouter();
   const supabase = createClient();
@@ -96,129 +119,156 @@ export default function DashboardSegreteria() {
     router.push("/admin");
   }
 
+  const confermateCount = iscrizioni.filter((i) => (i as any).confermata).length;
+  const daConfermareCount = iscrizioni.length - confermateCount;
+  const incassoTotale = iscrizioni.reduce((tot, i) => tot + Number(i.prezzo_totale || 0), 0);
+
   return (
-    <main className="min-h-screen bg-chalk px-5 py-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex items-center justify-between">
+    <main className="min-h-screen bg-chalk pb-16">
+      <div className="bg-navy px-5 py-6">
+        <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo-micolani.png" alt="Micolani Tennis" className="h-10 w-auto" />
-            <div>
-              <h1 className="font-display text-2xl font-bold text-court-dark">
-                Area segreteria
-              </h1>
-            </div>
+            <img src="/logo-micolani.png" alt="Micolani Tennis" className="h-9 w-auto" />
+            <span className="font-display text-lg font-semibold text-white">Area segreteria</span>
           </div>
           <button
             onClick={esci}
-            className="rounded-full border border-court/20 px-4 py-2 text-sm font-medium text-court-dark hover:bg-white"
+            className="rounded-full border border-white/20 px-4 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10"
           >
             Esci
           </button>
         </div>
+      </div>
 
-        <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-court/10">
-          <h2 className="font-display text-lg font-semibold text-court-dark">
-            Quota d'iscrizione (kit + tessera FITP)
-          </h2>
-          <div className="mt-3 flex items-center gap-3">
-            <input
-              className="w-28 rounded-lg border border-court/20 px-2 py-1.5 text-sm"
-              defaultValue={quotaIscrizione}
-              onChange={(e) => setQuotaModificata(e.target.value)}
-            />
-            <button
-              onClick={salvaQuota}
-              disabled={salvataggio === "quota"}
-              className="rounded-full bg-court px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
-            >
-              {salvataggio === "quota" ? "Salvo…" : "Salva"}
-            </button>
+      <div className="mx-auto max-w-5xl px-5">
+        <div className="-mt-6 mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard etichetta="Iscrizioni" valore={iscrizioni.length} />
+          <StatCard etichetta="Confermate" valore={confermateCount} tono="verde" />
+          <StatCard etichetta="Da confermare" valore={daConfermareCount} tono="ambra" />
+          <StatCard etichetta="Incasso atteso" valore={formattaEuro(incassoTotale)} />
+        </div>
+
+        <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-court/10">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-display text-lg font-semibold text-court-dark">
+                Quota d'iscrizione
+              </h2>
+              <p className="text-xs text-court-dark/50">
+                Kit abbigliamento e tessera FITP — si aggiunge a ogni corso
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-court-dark/40">€</span>
+              <input
+                className="w-20 rounded-lg border border-court/20 px-2 py-1.5 text-right text-sm"
+                defaultValue={quotaIscrizione}
+                onChange={(e) => setQuotaModificata(e.target.value)}
+              />
+              <button
+                onClick={salvaQuota}
+                disabled={salvataggio === "quota"}
+                className="rounded-full bg-court px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-court-dark disabled:opacity-60"
+              >
+                {salvataggio === "quota" ? "Salvo…" : "Salva"}
+              </button>
+            </div>
           </div>
-        </section>
 
-        <section className="mb-8 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-court/10">
-          <h2 className="font-display text-lg font-semibold text-court-dark">Listino corsi</h2>
-          <div className="mt-4 space-y-6">
-            {corsi.map((corso) => (
-              <div key={corso.id}>
-                <h3 className="mb-2 text-sm font-semibold text-court-dark">{corso.nome}</h3>
-                <div className="space-y-1.5">
-                  {corso.listini.map((l) => (
-                    <div key={l.id} className="flex items-center gap-3">
-                      <span className="w-40 text-sm text-court-dark/70">
-                        {l.frequenza_settimanale}x/sett. — {l.numero_rate === 1 ? "unico" : `${l.numero_rate} rate`}
-                      </span>
-                      <input
-                        className="w-24 rounded-lg border border-court/20 px-2 py-1.5 text-sm"
-                        defaultValue={l.importo_rata}
-                        onChange={(e) =>
-                          setImportiModificati((p) => ({ ...p, [l.id]: e.target.value }))
-                        }
-                      />
-                      <button
-                        onClick={() => salvaImporto(l.id)}
-                        disabled={salvataggio === l.id}
-                        className="rounded-full bg-court px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+          <details className="group mt-6 border-t border-court/10 pt-5">
+            <summary className="flex cursor-pointer list-none items-center justify-between font-display text-lg font-semibold text-court-dark">
+              Listino corsi
+              <span className="text-sm font-normal text-court-dark/40 transition-transform group-open:rotate-180">
+                ⌄
+              </span>
+            </summary>
+            <div className="mt-4 divide-y divide-court/5">
+              {corsi.map((corso) => (
+                <div key={corso.id} className="py-4 first:pt-0">
+                  <h3 className="mb-3 text-sm font-semibold text-court-dark">{corso.nome}</h3>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {corso.listini.map((l) => (
+                      <div
+                        key={l.id}
+                        className="flex items-center justify-between gap-2 rounded-xl bg-chalk px-3 py-2"
                       >
-                        {salvataggio === l.id ? "Salvo…" : "Salva"}
-                      </button>
-                    </div>
-                  ))}
+                        <span className="text-sm text-court-dark/70">
+                          {l.frequenza_settimanale}x/sett. —{" "}
+                          {l.numero_rate === 1 ? "unico" : `${l.numero_rate} rate`}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm text-court-dark/40">€</span>
+                          <input
+                            className="w-16 rounded-md border border-court/20 bg-white px-1.5 py-1 text-right text-sm"
+                            defaultValue={l.importo_rata}
+                            onChange={(e) =>
+                              setImportiModificati((p) => ({ ...p, [l.id]: e.target.value }))
+                            }
+                          />
+                          <button
+                            onClick={() => salvaImporto(l.id)}
+                            disabled={salvataggio === l.id}
+                            className="text-xs font-medium text-court underline decoration-court/30 underline-offset-2 hover:text-court-dark disabled:opacity-50"
+                          >
+                            {salvataggio === l.id ? "…" : "Salva"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </details>
         </section>
 
-        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-court/10">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-lg font-semibold text-court-dark">
-              Anagrafiche ricevute
-            </h2>
+        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-court/10">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-display text-lg font-semibold text-court-dark">
+                Anagrafiche ricevute
+              </h2>
+              <p className="text-xs text-court-dark/50">Clicca su una riga per il dettaglio</p>
+            </div>
             <form onSubmit={cerca} className="flex gap-2">
               <input
                 value={ricerca}
                 onChange={(e) => setRicerca(e.target.value)}
                 placeholder="Cerca per codice, nome, telefono…"
-                className="w-56 rounded-lg border border-court/20 px-3 py-1.5 text-sm"
+                className="w-56 rounded-full border border-court/20 px-4 py-1.5 text-sm"
               />
               <button
                 type="submit"
-                className="rounded-full bg-court px-4 py-1.5 text-sm font-medium text-white"
+                className="rounded-full bg-court px-4 py-1.5 text-sm font-medium text-white hover:bg-court-dark"
               >
                 Cerca
               </button>
             </form>
           </div>
 
-          <p className="mt-2 text-xs text-court-dark/50">
-            Clicca su una riga per vedere tutti i dati raccolti.
-          </p>
-
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-5 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-court/10 text-court-dark/60">
-                  <th className="py-2 pr-3">Codice</th>
-                  <th className="py-2 pr-3">Atleta</th>
-                  <th className="py-2 pr-3">Contatto</th>
-                  <th className="py-2 pr-3">Corso</th>
-                  <th className="py-2 pr-3">Frequenza</th>
-                  <th className="py-2 pr-3">Totale</th>
-                  <th className="py-2 pr-3">Stato</th>
+                <tr className="text-xs uppercase tracking-wide text-court-dark/40">
+                  <th className="pb-3 pr-3 font-medium">Atleta</th>
+                  <th className="pb-3 pr-3 font-medium">Codice</th>
+                  <th className="pb-3 pr-3 font-medium">Contatto</th>
+                  <th className="pb-3 pr-3 font-medium">Corso</th>
+                  <th className="pb-3 pr-3 font-medium">Totale</th>
+                  <th className="pb-3 pr-3 font-medium">Stato</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-court/5">
                 {caricamento && (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-court-dark/50">
+                    <td colSpan={6} className="py-8 text-center text-court-dark/40">
                       Caricamento…
                     </td>
                   </tr>
                 )}
                 {!caricamento && iscrizioni.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-court-dark/50">
+                    <td colSpan={6} className="py-8 text-center text-court-dark/40">
                       Nessuna anagrafica trovata.
                     </td>
                   </tr>
@@ -228,38 +278,46 @@ export default function DashboardSegreteria() {
                     <tr
                       key={i.id}
                       onClick={() => setEspansa(espansa === i.id ? null : i.id)}
-                      className="cursor-pointer border-b border-court/5 hover:bg-chalk"
+                      className="cursor-pointer transition-colors hover:bg-chalk"
                     >
-                      <td className="py-2 pr-3 font-medium text-court">{i.codice}</td>
-                      <td className="py-2 pr-3">
-                        {i.atleta_nome} {i.atleta_cognome}
-                        {i.minorenne && (
-                          <span className="ml-1 rounded-full bg-ace px-2 py-0.5 text-xs text-court-dark">
-                            minorenne
+                      <td className="py-3 pr-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ace text-xs font-semibold text-court-dark">
+                            {iniziali(i.atleta_nome, i.atleta_cognome)}
                           </span>
-                        )}
+                          <div>
+                            <p className="font-medium text-court-dark">
+                              {i.atleta_nome} {i.atleta_cognome}
+                            </p>
+                            {i.minorenne && (
+                              <p className="text-xs text-court-dark/40">minorenne</p>
+                            )}
+                          </div>
+                        </div>
                       </td>
-                      <td className="py-2 pr-3">
+                      <td className="py-3 pr-3 font-medium text-court">{i.codice}</td>
+                      <td className="py-3 pr-3 text-court-dark/70">
                         {i.minorenne ? i.genitore_telefono : i.atleta_telefono}
                       </td>
-                      <td className="py-2 pr-3">{(i as any).corsi?.nome ?? "-"}</td>
-                      <td className="py-2 pr-3">{i.frequenza_settimanale}x/sett.</td>
-                      <td className="py-2 pr-3">
-                        {formattaEuro(i.prezzo_totale)}
+                      <td className="py-3 pr-3 text-court-dark/70">
+                        {(i as any).corsi?.nome ?? "-"}
+                        <span className="text-court-dark/40"> · {i.frequenza_settimanale}x/sett.</span>
+                      </td>
+                      <td className="py-3 pr-3">
+                        <p className="font-medium text-court-dark">{formattaEuro(i.prezzo_totale)}</p>
                         {i.numero_rate > 1 && (
-                          <span className="text-court-dark/50">
-                            {" "}
-                            ({i.numero_rate}×{formattaEuro(i.importo_rata)} + quota)
-                          </span>
+                          <p className="text-xs text-court-dark/40">
+                            {i.numero_rate}×{formattaEuro(i.importo_rata)} + quota
+                          </p>
                         )}
                       </td>
-                      <td className="py-2 pr-3">
+                      <td className="py-3 pr-3">
                         {(i as any).confermata ? (
-                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
                             Confermata
                           </span>
                         ) : (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
                             Da confermare
                           </span>
                         )}
@@ -267,7 +325,7 @@ export default function DashboardSegreteria() {
                     </tr>
                     {espansa === i.id && (
                       <tr>
-                        <td colSpan={7} className="bg-chalk px-3 py-4">
+                        <td colSpan={6} className="rounded-2xl bg-chalk px-4 py-5">
                           <DettaglioIscrizione i={i} onCambiato={() => caricaTutto(ricerca)} />
                         </td>
                       </tr>
