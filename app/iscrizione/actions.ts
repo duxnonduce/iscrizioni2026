@@ -103,20 +103,26 @@ export async function inviaIscrizione(dati: DatiAnagrafica) {
   const supabase = createAdminClient();
   const intestazioni = headers();
 
-  const { data: listino } = await supabase
+  const { data: listino, error: erroreListino } = await supabase
     .from("listini")
     .select("id, corso_id, frequenza_settimanale, numero_rate, importo_rata")
     .eq("id", dati.listinoId)
     .single();
 
-  const { data: impostazioni } = await supabase
+  const { data: impostazioni, error: erroreImpostazioni } = await supabase
     .from("impostazioni")
     .select("stagione_etichetta, whatsapp_numero, quota_iscrizione")
     .eq("id", 1)
     .single();
 
   if (!listino || !impostazioni) {
-    return { ok: false as const, errore: "Corso o listino non trovati." };
+    console.error("Errore recupero listino:", erroreListino);
+    console.error("Errore recupero impostazioni:", erroreImpostazioni);
+    const dettaglio = erroreListino?.message || erroreImpostazioni?.message || "motivo sconosciuto";
+    return {
+      ok: false as const,
+      errore: `Corso o listino non trovati (${dettaglio}). listinoId inviato: ${dati.listinoId || "vuoto"}`,
+    };
   }
 
   if (
