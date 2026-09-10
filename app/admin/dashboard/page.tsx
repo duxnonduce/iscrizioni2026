@@ -89,6 +89,15 @@ export default function DashboardSegreteria() {
     setCaricamento(false);
   }
 
+  async function segnaComeStampata(id: string) {
+    const adesso = new Date().toISOString();
+    // Aggiorna subito lo stato in pagina, senza aspettare un ricaricamento completo
+    setIscrizioni((prev) =>
+      prev.map((it) => (it.id === id ? ({ ...it, stampata: true, stampata_il: adesso } as any) : it))
+    );
+    await segnaStampata(id);
+  }
+
   useEffect(() => {
     caricaTutto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -372,7 +381,11 @@ export default function DashboardSegreteria() {
                     {espansa === i.id && (
                       <tr>
                         <td colSpan={7} className="rounded-2xl bg-chalk px-4 py-5">
-                          <DettaglioIscrizione i={i} onCambiato={() => caricaTutto(ricerca)} />
+                          <DettaglioIscrizione
+                            i={i}
+                            onCambiato={() => caricaTutto(ricerca)}
+                            onStampata={() => segnaComeStampata(i.id)}
+                          />
                         </td>
                       </tr>
                     )}
@@ -523,7 +536,15 @@ function CampoModifica({
   );
 }
 
-function DettaglioIscrizione({ i, onCambiato }: { i: Iscrizione; onCambiato: () => void }) {
+function DettaglioIscrizione({
+  i,
+  onCambiato,
+  onStampata,
+}: {
+  i: Iscrizione;
+  onCambiato: () => void;
+  onStampata: () => void;
+}) {
   const r = i as any;
   const [modificaAttiva, setModificaAttiva] = useState(false);
   const [bozza, setBozza] = useState<Record<string, any>>({});
@@ -561,10 +582,9 @@ function DettaglioIscrizione({ i, onCambiato }: { i: Iscrizione; onCambiato: () 
     onCambiato();
   }
 
-  async function stampa() {
+  function stampa() {
     window.open(`/admin/stampa/${r.id}`, "_blank");
-    await segnaStampata(r.id);
-    onCambiato();
+    onStampata();
   }
 
   return (
