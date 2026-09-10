@@ -13,6 +13,7 @@ import {
   eliminaIscrizione,
   aggiornaIscrizione,
   riepilogoTaglie,
+  segnaStampata,
 } from "../actions";
 import { formattaEuro } from "@/lib/pricing";
 
@@ -147,10 +148,15 @@ export default function DashboardSegreteria() {
       </div>
 
       <div className="mx-auto max-w-5xl px-5">
-        <div className="-mt-6 mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="-mt-6 mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <StatCard etichetta="Iscrizioni" valore={iscrizioni.length} />
           <StatCard etichetta="Confermate" valore={confermateCount} tono="verde" />
           <StatCard etichetta="Da confermare" valore={daConfermareCount} tono="ambra" />
+          <StatCard
+            etichetta="Da stampare"
+            valore={iscrizioni.filter((i) => !(i as any).stampata).length}
+            tono="ambra"
+          />
           <StatCard etichetta="Incasso atteso" valore={formattaEuro(incassoTotale)} />
         </div>
 
@@ -288,19 +294,20 @@ export default function DashboardSegreteria() {
                   <th className="pb-3 pr-3 font-medium">Corso</th>
                   <th className="pb-3 pr-3 font-medium">Totale</th>
                   <th className="pb-3 pr-3 font-medium">Stato</th>
+                  <th className="pb-3 pr-3 font-medium">Stampa</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-court/5">
                 {caricamento && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-court-dark/40">
+                    <td colSpan={7} className="py-8 text-center text-court-dark/40">
                       Caricamento…
                     </td>
                   </tr>
                 )}
                 {!caricamento && iscrizioni.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-court-dark/40">
+                    <td colSpan={7} className="py-8 text-center text-court-dark/40">
                       Nessuna anagrafica trovata.
                     </td>
                   </tr>
@@ -354,10 +361,17 @@ export default function DashboardSegreteria() {
                           </span>
                         )}
                       </td>
+                      <td className="py-3 pr-3">
+                        {(i as any).stampata ? (
+                          <span className="text-lg" title="Già stampata">🖨️✅</span>
+                        ) : (
+                          <span className="text-xs text-court-dark/30">—</span>
+                        )}
+                      </td>
                     </tr>
                     {espansa === i.id && (
                       <tr>
-                        <td colSpan={6} className="rounded-2xl bg-chalk px-4 py-5">
+                        <td colSpan={7} className="rounded-2xl bg-chalk px-4 py-5">
                           <DettaglioIscrizione i={i} onCambiato={() => caricaTutto(ricerca)} />
                         </td>
                       </tr>
@@ -547,6 +561,12 @@ function DettaglioIscrizione({ i, onCambiato }: { i: Iscrizione; onCambiato: () 
     onCambiato();
   }
 
+  async function stampa() {
+    window.open(`/admin/stampa/${r.id}`, "_blank");
+    await segnaStampata(r.id);
+    onCambiato();
+  }
+
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-court/10 pb-4">
@@ -558,6 +578,13 @@ function DettaglioIscrizione({ i, onCambiato }: { i: Iscrizione; onCambiato: () 
           }`}
         >
           {r.confermata ? "Annulla conferma" : "Conferma iscrizione"}
+        </button>
+
+        <button
+          onClick={stampa}
+          className="rounded-full border border-court/20 px-4 py-1.5 text-sm font-medium text-court-dark hover:bg-white"
+        >
+          {r.stampata ? "🖨️ Ristampa" : "🖨️ Stampa scheda"}
         </button>
 
         {!modificaAttiva ? (
@@ -721,6 +748,8 @@ function DettaglioIscrizione({ i, onCambiato }: { i: Iscrizione; onCambiato: () 
           <Riga etichetta="Inviata il" valore={formattaOra(r.created_at)} />
           <Riga etichetta="Confermata" valore={r.confermata} />
           <Riga etichetta="Confermata il" valore={formattaOra(r.confermata_il)} />
+          <Riga etichetta="Stampata" valore={r.stampata} />
+          <Riga etichetta="Stampata il" valore={formattaOra(r.stampata_il)} />
           <Riga etichetta="Indirizzo IP" valore={r.ip_address} />
           <Riga etichetta="Dispositivo/browser" valore={r.user_agent} />
         </Sezione>

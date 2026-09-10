@@ -160,3 +160,37 @@ export async function riepilogoTaglie() {
   }
   return conteggio;
 }
+
+export async function segnaStampata(id: string) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("iscrizioni")
+    .update({ stampata: true, stampata_il: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/dashboard");
+}
+
+export async function annullaStampata(id: string) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("iscrizioni")
+    .update({ stampata: false, stampata_il: null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/dashboard");
+}
+
+export async function ottieniIscrizionePerStampa(id: string) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("iscrizioni")
+    .select("*, corsi(nome, fascia_eta, durata_lezione)")
+    .eq("id", id)
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}

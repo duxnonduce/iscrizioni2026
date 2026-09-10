@@ -26,7 +26,11 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session && request.nextUrl.pathname.startsWith("/admin/dashboard")) {
+  if (
+    !session &&
+    (request.nextUrl.pathname.startsWith("/admin/dashboard") ||
+      request.nextUrl.pathname.startsWith("/admin/stampa"))
+  ) {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
 
@@ -34,5 +38,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/dashboard/:path*"],
+  matcher: ["/admin/dashboard/:path*", "/admin/stampa/:path*"],
 };
