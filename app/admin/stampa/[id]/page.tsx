@@ -53,6 +53,12 @@ export default async function PaginaStampaIscrizione({ params }: { params: { id:
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8 text-court-dark">
+      <style>{`
+        @media print {
+          * { color: #000 !important; border-color: #000 !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
       <PulsanteStampa />
 
       <div className="mb-6 flex items-center justify-between border-b-4 border-navy pb-4">

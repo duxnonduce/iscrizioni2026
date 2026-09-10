@@ -95,7 +95,16 @@ export default function DashboardSegreteria() {
     setIscrizioni((prev) =>
       prev.map((it) => (it.id === id ? ({ ...it, stampata: true, stampata_il: adesso } as any) : it))
     );
-    await segnaStampata(id);
+    try {
+      await segnaStampata(id);
+    } catch (err) {
+      console.error("Errore nel salvare lo stato di stampa:", err);
+      alert(
+        "La scheda si è aperta, ma non sono riuscito a salvare lo stato \"stampata\" nel database.\n\n" +
+          "Motivo: " + (err instanceof Error ? err.message : String(err)) + "\n\n" +
+          "Verifica di aver eseguito su Supabase:\nalter table iscrizioni add column if not exists stampata boolean not null default false;\nalter table iscrizioni add column if not exists stampata_il timestamptz;"
+      );
+    }
   }
 
   useEffect(() => {
