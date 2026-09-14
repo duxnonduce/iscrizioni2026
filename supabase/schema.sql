@@ -222,6 +222,27 @@ alter table iscrizioni add column if not exists taglia_kit text;
 alter table iscrizioni add column if not exists stampata boolean not null default false;
 alter table iscrizioni add column if not exists stampata_il timestamptz;
 
+-- ===================================================================
+-- Gestione pagamenti: una riga per ogni rata (quota + rate del corso)
+-- di ogni iscrizione, con stato di incasso tracciabile singolarmente.
+-- ===================================================================
+create table if not exists rate_pagamento (
+  id uuid primary key default gen_random_uuid(),
+  iscrizione_id uuid not null references iscrizioni(id) on delete cascade,
+  tipo text not null,
+  importo numeric not null,
+  scadenza date,
+  pagata boolean not null default false,
+  data_pagamento date,
+  ordine int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_rate_iscrizione on rate_pagamento (iscrizione_id);
+create index if not exists idx_rate_pagata on rate_pagamento (pagata, data_pagamento);
+
+alter table rate_pagamento enable row level security;
+
 alter table impostazioni enable row level security;
 alter table corsi enable row level security;
 alter table listini enable row level security;

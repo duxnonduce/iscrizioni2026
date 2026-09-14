@@ -194,3 +194,131 @@ export async function ottieniIscrizionePerStampa(id: string) {
   if (error) throw new Error(error.message);
   return data;
 }
+
+export async function ottieniRatePagamento(iscrizioneId: string) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("rate_pagamento")
+    .select("*")
+    .eq("iscrizione_id", iscrizioneId)
+    .order("ordine", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function segnaRataPagamento(rataId: string, pagata: boolean) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("rate_pagamento")
+    .update({ pagata, data_pagamento: pagata ? new Date().toISOString().split("T")[0] : null })
+    .eq("id", rataId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/dashboard");
+}
+
+export async function aggiornaRata(
+  rataId: string,
+  campi: { tipo?: string; importo?: number; scadenza?: string | null; data_pagamento?: string | null }
+) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("rate_pagamento").update(campi).eq("id", rataId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/dashboard");
+}
+
+export async function riepilogoPagamenti() {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.from("rate_pagamento").select("importo, pagata, scadenza");
+  if (error) throw new Error(error.message);
+
+  const oggi = new Date().toISOString().split("T")[0];
+  let totalePagato = 0;
+  let totaleDovuto = 0;
+  let totaleScaduto = 0;
+
+  for (const riga of data ?? []) {
+    if (riga.pagata) {
+      totalePagato += Number(riga.importo);
+    } else {
+      totaleDovuto += Number(riga.importo);
+      if (riga.scadenza && riga.scadenza < oggi) {
+        totaleScaduto += Number(riga.importo);
+      }
+    }
+  }
+
+  return { totalePagato, totaleDovuto, totaleScaduto };
+}
+
+export async function elencoIncassi(limite: number = 100) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("rate_pagamento")
+    .select("id, tipo, importo, data_pagamento, iscrizioni(codice, atleta_nome, atleta_cognome)")
+    .eq("pagata", true)
+    .order("data_pagamento", { ascending: false })
+    .limit(limite);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+// Utility una tantum: genera le rate per le iscrizioni ricevute prima
+// dell'introduzione della gestione pagamenti (che quindi non ne hanno ancora).
+export async function generaRateMancanti() {
+  await verificaSessione();
+  const supabase = createAdminClient();
+
+  const { data: tutteIscrizioni, error: erroreIscrizioni } = await supabase
+    .from("iscrizioni")
+    .select("id, quota_iscrizione, numero_rate, importo_rata");
+  if (erroreIscrizioni) throw new Error(erroreIscrizioni.message);
+
+  const { data: rateEsistenti, error: erroreRate } = await supabase
+    .from("rate_pagamento")
+    .select("iscrizione_id");
+  if (erroreRate) throw new Error(erroreRate.message);
+
+  const idConRate = new Set((rateEsistenti ?? []).map((r) => r.iscrizione_id));
+  const daCompletare = (tutteIscrizioni ?? []).filter((i) => !idConRate.has(i.id));
+
+  if (daCompletare.length === 0) return { create: 0 };
+
+  const { data: impostazioni } = await supabase
+    .from("impostazioni")
+    .select("inizio_corsi, rata1_scadenza, rata2_scadenza, rata3_scadenza")
+    .eq("id", 1)
+    .single();
+
+  const scadenzeRate = [
+    impostazioni?.rata1_scadenza ?? null,
+    impostazioni?.rata2_scadenza ?? null,
+    impostazioni?.rata3_scadenza ?? null,
+  ];
+
+  const righe = daCompletare.flatMap((i) => [
+    {
+      iscrizione_id: i.id,
+      tipo: "Quota iscrizione",
+      importo: i.quota_iscrizione,
+      scadenza: impostazioni?.inizio_corsi ?? null,
+      ordine: 0,
+    },
+    ...Array.from({ length: i.numero_rate }).map((_, indice) => ({
+      iscrizione_id: i.id,
+      tipo: i.numero_rate === 1 ? "Corso — pagamento unico" : `Corso — rata ${indice + 1}`,
+      importo: i.importo_rata,
+      scadenza: scadenzeRate[indice] ?? null,
+      ordine: indice + 1,
+    })),
+  ]);
+
+  const { error } = await supabase.from("rate_pagamento").insert(righe);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/dashboard");
+  return { create: daCompletare.length };
+}

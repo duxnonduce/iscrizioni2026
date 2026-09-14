@@ -14,6 +14,12 @@ import {
   aggiornaIscrizione,
   riepilogoTaglie,
   segnaStampata,
+  ottieniRatePagamento,
+  segnaRataPagamento,
+  aggiornaRata,
+  riepilogoPagamenti,
+  elencoIncassi,
+  generaRateMancanti,
 } from "../actions";
 import { formattaEuro } from "@/lib/pricing";
 
@@ -47,10 +53,16 @@ function StatCard({
 }: {
   etichetta: string;
   valore: string | number;
-  tono?: "default" | "verde" | "ambra";
+  tono?: "default" | "verde" | "ambra" | "rosso";
 }) {
   const coloreValore =
-    tono === "verde" ? "text-emerald-600" : tono === "ambra" ? "text-amber-600" : "text-court-dark";
+    tono === "verde"
+      ? "text-emerald-600"
+      : tono === "ambra"
+        ? "text-amber-600"
+        : tono === "rosso"
+          ? "text-red-600"
+          : "text-court-dark";
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-court/10">
       <p className="text-xs font-medium uppercase tracking-wide text-court-dark/40">{etichetta}</p>
@@ -73,19 +85,27 @@ export default function DashboardSegreteria() {
   const [salvataggio, setSalvataggio] = useState<string | null>(null);
   const [espansa, setEspansa] = useState<string | null>(null);
   const [taglie, setTaglie] = useState<Record<string, number>>({});
+  const [pagamenti, setPagamenti] = useState({ totalePagato: 0, totaleDovuto: 0, totaleScaduto: 0 });
+  const [incassi, setIncassi] = useState<Awaited<ReturnType<typeof elencoIncassi>>>([]);
+  const [generandoRate, setGenerandoRate] = useState(false);
 
   async function caricaTutto(termine = "") {
     setCaricamento(true);
-    const [risultatiIscrizioni, risultatiCorsi, quota, conteggioTaglie] = await Promise.all([
-      cercaIscrizioni(termine),
-      elencaCorsiConListini(),
-      ottieniQuotaIscrizione(),
-      riepilogoTaglie(),
-    ]);
+    const [risultatiIscrizioni, risultatiCorsi, quota, conteggioTaglie, riepilogoPag, listaIncassi] =
+      await Promise.all([
+        cercaIscrizioni(termine),
+        elencaCorsiConListini(),
+        ottieniQuotaIscrizione(),
+        riepilogoTaglie(),
+        riepilogoPagamenti(),
+        elencoIncassi(50),
+      ]);
     setIscrizioni(risultatiIscrizioni);
     setCorsi(risultatiCorsi);
     setQuotaIscrizione(quota);
     setTaglie(conteggioTaglie);
+    setPagamenti(riepilogoPag);
+    setIncassi(listaIncassi);
     setCaricamento(false);
   }
 
@@ -144,9 +164,20 @@ export default function DashboardSegreteria() {
     router.push("/admin");
   }
 
+  async function generaRate() {
+    setGenerandoRate(true);
+    const risultato = await generaRateMancanti();
+    await caricaTutto(ricerca);
+    setGenerandoRate(false);
+    if (risultato.create > 0) {
+      alert(`Generate le rate per ${risultato.create} iscrizione/i che non le avevano ancora.`);
+    } else {
+      alert("Tutte le iscrizioni hanno già le rate generate.");
+    }
+  }
+
   const confermateCount = iscrizioni.filter((i) => (i as any).confermata).length;
   const daConfermareCount = iscrizioni.length - confermateCount;
-  const incassoTotale = iscrizioni.reduce((tot, i) => tot + Number(i.prezzo_totale || 0), 0);
 
   return (
     <main className="min-h-screen bg-chalk pb-16">
@@ -166,7 +197,7 @@ export default function DashboardSegreteria() {
       </div>
 
       <div className="mx-auto max-w-5xl px-5">
-        <div className="-mt-6 mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="-mt-6 mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard etichetta="Iscrizioni" valore={iscrizioni.length} />
           <StatCard etichetta="Confermate" valore={confermateCount} tono="verde" />
           <StatCard etichetta="Da confermare" valore={daConfermareCount} tono="ambra" />
@@ -175,7 +206,9 @@ export default function DashboardSegreteria() {
             valore={iscrizioni.filter((i) => !(i as any).stampata).length}
             tono="ambra"
           />
-          <StatCard etichetta="Incasso atteso" valore={formattaEuro(incassoTotale)} />
+          <StatCard etichetta="Totale pagato" valore={formattaEuro(pagamenti.totalePagato)} tono="verde" />
+          <StatCard etichetta="Totale dovuto" valore={formattaEuro(pagamenti.totaleDovuto)} />
+          <StatCard etichetta="Totale scaduto" valore={formattaEuro(pagamenti.totaleScaduto)} tono="rosso" />
         </div>
 
         <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-court/10">
@@ -404,6 +437,60 @@ export default function DashboardSegreteria() {
             </table>
           </div>
         </section>
+
+        <section className="mt-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-court/10">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-display text-lg font-semibold text-court-dark">
+                Registro incassi
+              </h2>
+              <p className="text-xs text-court-dark/50">Ultimi pagamenti registrati, più recenti in alto</p>
+            </div>
+            <button
+              onClick={generaRate}
+              disabled={generandoRate}
+              className="rounded-full border border-court/20 px-4 py-1.5 text-xs font-medium text-court-dark/60 hover:bg-chalk disabled:opacity-60"
+            >
+              {generandoRate ? "Genero…" : "Genera rate mancanti"}
+            </button>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="text-xs uppercase tracking-wide text-court-dark/40">
+                  <th className="pb-3 pr-3 font-medium">Data</th>
+                  <th className="pb-3 pr-3 font-medium">Atleta</th>
+                  <th className="pb-3 pr-3 font-medium">Codice</th>
+                  <th className="pb-3 pr-3 font-medium">Causale</th>
+                  <th className="pb-3 pr-3 font-medium">Importo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-court/5">
+                {incassi.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-court-dark/40">
+                      Nessun incasso registrato ancora.
+                    </td>
+                  </tr>
+                )}
+                {incassi.map((inc: any) => (
+                  <tr key={inc.id}>
+                    <td className="py-2.5 pr-3 text-court-dark/70">{formattaData(inc.data_pagamento)}</td>
+                    <td className="py-2.5 pr-3 text-court-dark">
+                      {inc.iscrizioni?.atleta_nome} {inc.iscrizioni?.atleta_cognome}
+                    </td>
+                    <td className="py-2.5 pr-3 font-medium text-court">{inc.iscrizioni?.codice}</td>
+                    <td className="py-2.5 pr-3 text-court-dark/70">{inc.tipo}</td>
+                    <td className="py-2.5 pr-3 font-medium text-emerald-600">
+                      {formattaEuro(inc.importo)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </main>
   );
@@ -558,6 +645,33 @@ function DettaglioIscrizione({
   const [modificaAttiva, setModificaAttiva] = useState(false);
   const [bozza, setBozza] = useState<Record<string, any>>({});
   const [azioneInCorso, setAzioneInCorso] = useState(false);
+  const [rate, setRate] = useState<Awaited<ReturnType<typeof ottieniRatePagamento>>>([]);
+  const [caricamentoRate, setCaricamentoRate] = useState(true);
+
+  useEffect(() => {
+    let attivo = true;
+    setCaricamentoRate(true);
+    ottieniRatePagamento(r.id).then((risultato) => {
+      if (attivo) {
+        setRate(risultato);
+        setCaricamentoRate(false);
+      }
+    });
+    return () => {
+      attivo = false;
+    };
+  }, [r.id]);
+
+  async function toggleRataPagata(rataId: string, pagataAttuale: boolean) {
+    setRate((prev) =>
+      prev.map((riga) =>
+        riga.id === rataId
+          ? { ...riga, pagata: !pagataAttuale, data_pagamento: !pagataAttuale ? new Date().toISOString().split("T")[0] : null }
+          : riga
+      )
+    );
+    await segnaRataPagamento(rataId, !pagataAttuale);
+  }
 
   function iniziaModifica() {
     const iniziale: Record<string, any> = {};
@@ -648,6 +762,69 @@ function DettaglioIscrizione({
         >
           Elimina
         </button>
+      </div>
+
+      <div className="mb-6 rounded-2xl bg-white p-4 ring-1 ring-court/10">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-court-dark/50">
+          Pagamenti
+        </h4>
+        {caricamentoRate ? (
+          <p className="text-sm text-court-dark/40">Caricamento…</p>
+        ) : rate.length === 0 ? (
+          <p className="text-sm text-court-dark/40">
+            Nessuna rata generata per questa iscrizione.
+          </p>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap gap-4 text-sm">
+              <span className="text-court-dark/60">
+                Pagato:{" "}
+                <strong className="text-emerald-600">
+                  {formattaEuro(rate.filter((x) => x.pagata).reduce((t, x) => t + Number(x.importo), 0))}
+                </strong>
+              </span>
+              <span className="text-court-dark/60">
+                Da incassare:{" "}
+                <strong className="text-court-dark">
+                  {formattaEuro(rate.filter((x) => !x.pagata).reduce((t, x) => t + Number(x.importo), 0))}
+                </strong>
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {rate.map((riga: any) => (
+                <label
+                  key={riga.id}
+                  className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm ${
+                    riga.pagata ? "bg-emerald-50" : "bg-chalk"
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={riga.pagata}
+                      onChange={() => toggleRataPagata(riga.id, riga.pagata)}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-court-dark">{riga.tipo}</span>
+                    {riga.scadenza && (
+                      <span className="text-xs text-court-dark/40">
+                        scad. {formattaData(riga.scadenza)}
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    {riga.pagata && riga.data_pagamento && (
+                      <span className="text-xs text-emerald-700">
+                        pagata il {formattaData(riga.data_pagamento)}
+                      </span>
+                    )}
+                    <span className="font-medium text-court-dark">{formattaEuro(riga.importo)}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

@@ -269,6 +269,41 @@ export async function inviaIscrizione(dati: DatiAnagrafica) {
     };
   }
 
+  // Genera automaticamente le rate: quota d'iscrizione + una riga per ogni rata del corso
+  const { data: impostazioniComplete } = await supabase
+    .from("impostazioni")
+    .select("inizio_corsi, rata1_scadenza, rata2_scadenza, rata3_scadenza")
+    .eq("id", 1)
+    .single();
+
+  const scadenzeRate = [
+    impostazioniComplete?.rata1_scadenza ?? null,
+    impostazioniComplete?.rata2_scadenza ?? null,
+    impostazioniComplete?.rata3_scadenza ?? null,
+  ];
+
+  const righeRate = [
+    {
+      iscrizione_id: inserito.id,
+      tipo: "Quota iscrizione",
+      importo: impostazioni.quota_iscrizione,
+      scadenza: impostazioniComplete?.inizio_corsi ?? null,
+      ordine: 0,
+    },
+    ...Array.from({ length: listino.numero_rate }).map((_, indice) => ({
+      iscrizione_id: inserito.id,
+      tipo: listino.numero_rate === 1 ? "Corso — pagamento unico" : `Corso — rata ${indice + 1}`,
+      importo: listino.importo_rata,
+      scadenza: scadenzeRate[indice] ?? null,
+      ordine: indice + 1,
+    })),
+  ];
+
+  const { error: erroreRate } = await supabase.from("rate_pagamento").insert(righeRate);
+  if (erroreRate) {
+    console.error("Errore nella generazione delle rate di pagamento:", erroreRate);
+  }
+
   const contattoPrincipale = dati.minorenne ? dati.genitoreTelefono : dati.atletaTelefono;
 
   const testoMessaggio = encodeURIComponent(
