@@ -220,13 +220,83 @@ export async function segnaRataPagamento(rataId: string, pagata: boolean) {
 
 export async function aggiornaRata(
   rataId: string,
-  campi: { tipo?: string; importo?: number; scadenza?: string | null; data_pagamento?: string | null }
+  campi: {
+    tipo?: string;
+    importo?: number;
+    scadenza?: string | null;
+    data_pagamento?: string | null;
+    metodo_pagamento?: string | null;
+  }
 ) {
   await verificaSessione();
   const supabase = createAdminClient();
   const { error } = await supabase.from("rate_pagamento").update(campi).eq("id", rataId);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/dashboard");
+}
+
+export async function aggiungiRata(
+  iscrizioneId: string,
+  dati: { tipo: string; importo: number; scadenza: string | null }
+) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+
+  const { data: esistenti } = await supabase
+    .from("rate_pagamento")
+    .select("ordine")
+    .eq("iscrizione_id", iscrizioneId)
+    .order("ordine", { ascending: false })
+    .limit(1);
+
+  const prossimoOrdine = (esistenti?.[0]?.ordine ?? -1) + 1;
+
+  const { error } = await supabase.from("rate_pagamento").insert({
+    iscrizione_id: iscrizioneId,
+    tipo: dati.tipo,
+    importo: dati.importo,
+    scadenza: dati.scadenza,
+    ordine: prossimoOrdine,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/dashboard");
+}
+
+export async function eliminaRata(rataId: string) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("rate_pagamento").delete().eq("id", rataId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/dashboard");
+}
+
+export async function mappaPagamentiPerIscrizione() {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("rate_pagamento")
+    .select("iscrizione_id, importo, pagata, scadenza");
+  if (error) throw new Error(error.message);
+
+  const oggi = new Date().toISOString().split("T")[0];
+  const mappa: Record<string, { totale: number; pagato: number; scaduto: boolean; numeroRate: number; numeroPagate: number }> = {};
+
+  for (const riga of data ?? []) {
+    if (!mappa[riga.iscrizione_id]) {
+      mappa[riga.iscrizione_id] = { totale: 0, pagato: 0, scaduto: false, numeroRate: 0, numeroPagate: 0 };
+    }
+    const voce = mappa[riga.iscrizione_id];
+    voce.totale += Number(riga.importo);
+    voce.numeroRate += 1;
+    if (riga.pagata) {
+      voce.pagato += Number(riga.importo);
+      voce.numeroPagate += 1;
+    } else if (riga.scadenza && riga.scadenza < oggi) {
+      voce.scaduto = true;
+    }
+  }
+
+  return mappa;
 }
 
 export async function riepilogoPagamenti() {
@@ -259,7 +329,7 @@ export async function elencoIncassi(limite: number = 100) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("rate_pagamento")
-    .select("id, tipo, importo, data_pagamento, iscrizioni(codice, atleta_nome, atleta_cognome)")
+    .select("id, tipo, importo, data_pagamento, metodo_pagamento, iscrizioni(codice, atleta_nome, atleta_cognome)")
     .eq("pagata", true)
     .order("data_pagamento", { ascending: false })
     .limit(limite);

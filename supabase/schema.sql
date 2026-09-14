@@ -234,6 +234,7 @@ create table if not exists rate_pagamento (
   scadenza date,
   pagata boolean not null default false,
   data_pagamento date,
+  metodo_pagamento text,
   ordine int not null default 0,
   created_at timestamptz not null default now()
 );
@@ -242,6 +243,7 @@ create index if not exists idx_rate_iscrizione on rate_pagamento (iscrizione_id)
 create index if not exists idx_rate_pagata on rate_pagamento (pagata, data_pagamento);
 
 alter table rate_pagamento enable row level security;
+alter table rate_pagamento add column if not exists metodo_pagamento text;
 
 alter table impostazioni enable row level security;
 alter table corsi enable row level security;

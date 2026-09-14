@@ -20,6 +20,9 @@ import {
   riepilogoPagamenti,
   elencoIncassi,
   generaRateMancanti,
+  aggiungiRata,
+  eliminaRata,
+  mappaPagamentiPerIscrizione,
 } from "../actions";
 import { formattaEuro } from "@/lib/pricing";
 
@@ -45,6 +48,39 @@ function iniziali(nome: string, cognome: string): string {
 }
 
 const ORDINE_TAGLIE = ["5/6", "7/8", "9/10", "11/12", "13/14", "15/16", "XXS", "XS", "S", "M", "L", "XL", "XXL"];
+
+function BarraPagamento({
+  riepilogo,
+}: {
+  riepilogo?: { totale: number; pagato: number; scaduto: boolean; numeroRate: number; numeroPagate: number };
+}) {
+  if (!riepilogo || riepilogo.numeroRate === 0) {
+    return <span className="text-xs text-court-dark/30">—</span>;
+  }
+  const percentuale = riepilogo.totale > 0 ? Math.round((riepilogo.pagato / riepilogo.totale) * 100) : 0;
+  const completo = percentuale >= 100;
+  const coloreBarra = riepilogo.scaduto ? "bg-red-500" : completo ? "bg-emerald-500" : "bg-amber-500";
+
+  return (
+    <div className="w-28">
+      <div className="flex items-center justify-between text-xs">
+        <span
+          className={`font-medium ${
+            riepilogo.scaduto ? "text-red-600" : completo ? "text-emerald-600" : "text-court-dark/60"
+          }`}
+        >
+          {riepilogo.scaduto ? "Scaduto" : `${percentuale}%`}
+        </span>
+        <span className="text-court-dark/40">
+          {riepilogo.numeroPagate}/{riepilogo.numeroRate}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-court/10">
+        <div className={`h-full rounded-full ${coloreBarra}`} style={{ width: `${Math.min(100, percentuale)}%` }} />
+      </div>
+    </div>
+  );
+}
 
 function StatCard({
   etichetta,
@@ -88,10 +124,11 @@ export default function DashboardSegreteria() {
   const [pagamenti, setPagamenti] = useState({ totalePagato: 0, totaleDovuto: 0, totaleScaduto: 0 });
   const [incassi, setIncassi] = useState<Awaited<ReturnType<typeof elencoIncassi>>>([]);
   const [generandoRate, setGenerandoRate] = useState(false);
+  const [mappaPagamenti, setMappaPagamenti] = useState<Awaited<ReturnType<typeof mappaPagamentiPerIscrizione>>>({});
 
   async function caricaTutto(termine = "") {
     setCaricamento(true);
-    const [risultatiIscrizioni, risultatiCorsi, quota, conteggioTaglie, riepilogoPag, listaIncassi] =
+    const [risultatiIscrizioni, risultatiCorsi, quota, conteggioTaglie, riepilogoPag, listaIncassi, mappaPag] =
       await Promise.all([
         cercaIscrizioni(termine),
         elencaCorsiConListini(),
@@ -99,6 +136,7 @@ export default function DashboardSegreteria() {
         riepilogoTaglie(),
         riepilogoPagamenti(),
         elencoIncassi(50),
+        mappaPagamentiPerIscrizione(),
       ]);
     setIscrizioni(risultatiIscrizioni);
     setCorsi(risultatiCorsi);
@@ -106,6 +144,7 @@ export default function DashboardSegreteria() {
     setTaglie(conteggioTaglie);
     setPagamenti(riepilogoPag);
     setIncassi(listaIncassi);
+    setMappaPagamenti(mappaPag);
     setCaricamento(false);
   }
 
@@ -344,6 +383,7 @@ export default function DashboardSegreteria() {
                   <th className="pb-3 pr-3 font-medium">Contatto</th>
                   <th className="pb-3 pr-3 font-medium">Corso</th>
                   <th className="pb-3 pr-3 font-medium">Totale</th>
+                  <th className="pb-3 pr-3 font-medium">Pagamento</th>
                   <th className="pb-3 pr-3 font-medium">Stato</th>
                   <th className="pb-3 pr-3 font-medium">Stampa</th>
                 </tr>
@@ -351,14 +391,14 @@ export default function DashboardSegreteria() {
               <tbody className="divide-y divide-court/5">
                 {caricamento && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-court-dark/40">
+                    <td colSpan={8} className="py-8 text-center text-court-dark/40">
                       Caricamento…
                     </td>
                   </tr>
                 )}
                 {!caricamento && iscrizioni.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-court-dark/40">
+                    <td colSpan={8} className="py-8 text-center text-court-dark/40">
                       Nessuna anagrafica trovata.
                     </td>
                   </tr>
@@ -402,6 +442,9 @@ export default function DashboardSegreteria() {
                         )}
                       </td>
                       <td className="py-3 pr-3">
+                        <BarraPagamento riepilogo={mappaPagamenti[i.id]} />
+                      </td>
+                      <td className="py-3 pr-3">
                         {(i as any).confermata ? (
                           <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
                             Confermata
@@ -422,7 +465,7 @@ export default function DashboardSegreteria() {
                     </tr>
                     {espansa === i.id && (
                       <tr>
-                        <td colSpan={7} className="rounded-2xl bg-chalk px-4 py-5">
+                        <td colSpan={8} className="rounded-2xl bg-chalk px-4 py-5">
                           <DettaglioIscrizione
                             i={i}
                             onCambiato={() => caricaTutto(ricerca)}
@@ -463,13 +506,14 @@ export default function DashboardSegreteria() {
                   <th className="pb-3 pr-3 font-medium">Atleta</th>
                   <th className="pb-3 pr-3 font-medium">Codice</th>
                   <th className="pb-3 pr-3 font-medium">Causale</th>
+                  <th className="pb-3 pr-3 font-medium">Metodo</th>
                   <th className="pb-3 pr-3 font-medium">Importo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-court/5">
                 {incassi.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-court-dark/40">
+                    <td colSpan={6} className="py-8 text-center text-court-dark/40">
                       Nessun incasso registrato ancora.
                     </td>
                   </tr>
@@ -482,6 +526,7 @@ export default function DashboardSegreteria() {
                     </td>
                     <td className="py-2.5 pr-3 font-medium text-court">{inc.iscrizioni?.codice}</td>
                     <td className="py-2.5 pr-3 text-court-dark/70">{inc.tipo}</td>
+                    <td className="py-2.5 pr-3 text-court-dark/50">{inc.metodo_pagamento || "—"}</td>
                     <td className="py-2.5 pr-3 font-medium text-emerald-600">
                       {formattaEuro(inc.importo)}
                     </td>
@@ -673,6 +718,23 @@ function DettaglioIscrizione({
     await segnaRataPagamento(rataId, !pagataAttuale);
   }
 
+  async function modificaCampoRata(rataId: string, campo: string, valore: any) {
+    setRate((prev) => prev.map((riga) => (riga.id === rataId ? { ...riga, [campo]: valore } : riga)));
+    await aggiornaRata(rataId, { [campo]: valore || null });
+  }
+
+  async function nuovaRata() {
+    await aggiungiRata(r.id, { tipo: "Nuova rata", importo: 0, scadenza: null });
+    const aggiornate = await ottieniRatePagamento(r.id);
+    setRate(aggiornate);
+  }
+
+  async function rimuoviRata(rataId: string) {
+    if (!confirm("Eliminare questa rata?")) return;
+    setRate((prev) => prev.filter((riga) => riga.id !== rataId));
+    await eliminaRata(rataId);
+  }
+
   function iniziaModifica() {
     const iniziale: Record<string, any> = {};
     for (const campo of [...CAMPI_TESTO, ...CAMPI_GENITORE, ...CAMPI_CORSO, ...CAMPI_FATTURAZIONE, ...CAMPI_CONSENSI]) {
@@ -764,67 +826,155 @@ function DettaglioIscrizione({
         </button>
       </div>
 
-      <div className="mb-6 rounded-2xl bg-white p-4 ring-1 ring-court/10">
-        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-court-dark/50">
-          Pagamenti
-        </h4>
-        {caricamentoRate ? (
-          <p className="text-sm text-court-dark/40">Caricamento…</p>
-        ) : rate.length === 0 ? (
-          <p className="text-sm text-court-dark/40">
-            Nessuna rata generata per questa iscrizione.
-          </p>
-        ) : (
-          <>
-            <div className="mb-3 flex flex-wrap gap-4 text-sm">
-              <span className="text-court-dark/60">
-                Pagato:{" "}
-                <strong className="text-emerald-600">
-                  {formattaEuro(rate.filter((x) => x.pagata).reduce((t, x) => t + Number(x.importo), 0))}
-                </strong>
-              </span>
-              <span className="text-court-dark/60">
-                Da incassare:{" "}
-                <strong className="text-court-dark">
-                  {formattaEuro(rate.filter((x) => !x.pagata).reduce((t, x) => t + Number(x.importo), 0))}
-                </strong>
-              </span>
-            </div>
-            <div className="space-y-1.5">
-              {rate.map((riga: any) => (
-                <label
-                  key={riga.id}
-                  className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm ${
-                    riga.pagata ? "bg-emerald-50" : "bg-chalk"
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      checked={riga.pagata}
-                      onChange={() => toggleRataPagata(riga.id, riga.pagata)}
-                      className="h-4 w-4"
-                    />
-                    <span className="text-court-dark">{riga.tipo}</span>
-                    {riga.scadenza && (
-                      <span className="text-xs text-court-dark/40">
-                        scad. {formattaData(riga.scadenza)}
+      <div className="mb-6 overflow-hidden rounded-2xl ring-1 ring-court/10">
+        <div className="flex items-center justify-between bg-navy px-4 py-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-white/70">
+            Pagamenti
+          </h4>
+          <button
+            onClick={nuovaRata}
+            className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white hover:bg-white/20"
+          >
+            + Aggiungi rata
+          </button>
+        </div>
+
+        <div className="bg-white p-4">
+          {caricamentoRate ? (
+            <p className="text-sm text-court-dark/40">Caricamento…</p>
+          ) : rate.length === 0 ? (
+            <p className="text-sm text-court-dark/40">
+              Nessuna rata generata per questa iscrizione. Usa "+ Aggiungi rata" per crearne una.
+            </p>
+          ) : (
+            <>
+              {(() => {
+                const totale = rate.reduce((t, x: any) => t + Number(x.importo), 0);
+                const pagato = rate.filter((x: any) => x.pagata).reduce((t, x: any) => t + Number(x.importo), 0);
+                const percentuale = totale > 0 ? Math.round((pagato / totale) * 100) : 0;
+                return (
+                  <div className="mb-4">
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className="font-display text-2xl font-bold text-court-dark">
+                          {formattaEuro(pagato)}{" "}
+                          <span className="text-sm font-normal text-court-dark/40">
+                            di {formattaEuro(totale)}
+                          </span>
+                        </p>
+                        <p className="text-xs text-court-dark/50">
+                          {rate.filter((x: any) => x.pagata).length} di {rate.length} rate incassate
+                        </p>
+                      </div>
+                      <span
+                        className={`font-display text-xl font-bold ${
+                          percentuale >= 100 ? "text-emerald-600" : "text-court"
+                        }`}
+                      >
+                        {percentuale}%
                       </span>
-                    )}
-                  </span>
-                  <span className="flex items-center gap-3">
-                    {riga.pagata && riga.data_pagamento && (
-                      <span className="text-xs text-emerald-700">
-                        pagata il {formattaData(riga.data_pagamento)}
-                      </span>
-                    )}
-                    <span className="font-medium text-court-dark">{formattaEuro(riga.importo)}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </>
-        )}
+                    </div>
+                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-court/10">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          percentuale >= 100 ? "bg-emerald-500" : "bg-court"
+                        }`}
+                        style={{ width: `${Math.min(100, percentuale)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="space-y-2">
+                {rate.map((riga: any) => (
+                  <div
+                    key={riga.id}
+                    className={`rounded-xl px-3 py-2.5 transition-colors ${
+                      riga.pagata ? "bg-emerald-50" : "bg-chalk"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={riga.pagata}
+                        onChange={() => toggleRataPagata(riga.id, riga.pagata)}
+                        className="h-4 w-4 shrink-0"
+                      />
+                      <input
+                        className="min-w-[9rem] flex-1 border-b border-transparent bg-transparent text-sm font-medium text-court-dark hover:border-court/20 focus:border-court/40 focus:outline-none"
+                        defaultValue={riga.tipo}
+                        onBlur={(e) => e.target.value !== riga.tipo && modificaCampoRata(riga.id, "tipo", e.target.value)}
+                      />
+                      <span className="text-xs text-court-dark/40">€</span>
+                      <input
+                        type="number"
+                        className="w-20 border-b border-transparent bg-transparent text-right text-sm font-medium text-court-dark hover:border-court/20 focus:border-court/40 focus:outline-none"
+                        defaultValue={riga.importo}
+                        onBlur={(e) =>
+                          Number(e.target.value) !== Number(riga.importo) &&
+                          modificaCampoRata(riga.id, "importo", Number(e.target.value))
+                        }
+                      />
+                      <button
+                        onClick={() => rimuoviRata(riga.id)}
+                        className="ml-auto shrink-0 text-court-dark/30 hover:text-red-500"
+                        title="Elimina rata"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-3 pl-6 text-xs text-court-dark/50">
+                      <label className="flex items-center gap-1">
+                        Scadenza
+                        <input
+                          type="date"
+                          className="rounded border border-court/15 bg-white px-1.5 py-0.5 text-court-dark"
+                          defaultValue={riga.scadenza ?? ""}
+                          onBlur={(e) =>
+                            e.target.value !== (riga.scadenza ?? "") &&
+                            modificaCampoRata(riga.id, "scadenza", e.target.value)
+                          }
+                        />
+                      </label>
+                      {riga.pagata && (
+                        <>
+                          <label className="flex items-center gap-1">
+                            Pagata il
+                            <input
+                              type="date"
+                              className="rounded border border-court/15 bg-white px-1.5 py-0.5 text-court-dark"
+                              defaultValue={riga.data_pagamento ?? ""}
+                              onBlur={(e) =>
+                                e.target.value !== (riga.data_pagamento ?? "") &&
+                                modificaCampoRata(riga.id, "data_pagamento", e.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="flex items-center gap-1">
+                            Metodo
+                            <select
+                              className="rounded border border-court/15 bg-white px-1.5 py-0.5 text-court-dark"
+                              defaultValue={riga.metodo_pagamento ?? ""}
+                              onChange={(e) => modificaCampoRata(riga.id, "metodo_pagamento", e.target.value)}
+                            >
+                              <option value="">—</option>
+                              <option value="Contanti">Contanti</option>
+                              <option value="Carta">Carta</option>
+                              <option value="Bonifico">Bonifico</option>
+                              <option value="PayPal">PayPal</option>
+                              <option value="Altro">Altro</option>
+                            </select>
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
