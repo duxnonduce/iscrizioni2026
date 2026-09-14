@@ -45,6 +45,10 @@ function formattaOra(iso: string | null): string {
 
 const ORDINE_TAGLIE = ["5/6", "7/8", "9/10", "11/12", "13/14", "15/16", "XXS", "XS", "S", "M", "L", "XL", "XXL"];
 
+function iniziali(nome: string, cognome: string): string {
+  return `${(nome || "?")[0] ?? ""}${(cognome || "")[0] ?? ""}`.toUpperCase();
+}
+
 const VISTE = [
   { id: "panoramica", etichetta: "Panoramica", icona: "🏠" },
   { id: "iscrizioni", etichetta: "Iscrizioni", icona: "📋" },
