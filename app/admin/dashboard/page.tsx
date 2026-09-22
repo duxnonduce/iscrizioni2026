@@ -101,6 +101,7 @@ const VISTE = [
   { id: "panoramica", etichetta: "Panoramica", icona: "🏠" },
   { id: "iscrizioni", etichetta: "Iscrizioni", icona: "📋" },
   { id: "certificati", etichetta: "Certificati", icona: "🩺" },
+  { id: "tesseramenti", etichetta: "Tesseramenti", icona: "🎟️" },
   { id: "pagamenti", etichetta: "Incassi", icona: "💳" },
   { id: "listino", etichetta: "Listino", icona: "🎾" },
 ] as const;
@@ -329,7 +330,7 @@ export default function DashboardSegreteria() {
       <main className="mx-auto max-w-6xl px-5 py-8">
         {vista === "panoramica" && (
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
+            <h1 className="font-display text-3xl font-bold tracking-tight text-neutral-900">
               Ciao! Ecco la situazione di oggi
             </h1>
             <p className="mt-1 text-sm text-neutral-400">
@@ -384,7 +385,7 @@ export default function DashboardSegreteria() {
                     }}
                     className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-neutral-50"
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-court to-court-light text-xs font-semibold text-white">
                       {iniziali(i.atleta_nome, i.atleta_cognome)}
                     </span>
                     <span className="min-w-0 flex-1">
@@ -416,7 +417,7 @@ export default function DashboardSegreteria() {
           <div>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Iscrizioni</h1>
+                <h1 className="font-display text-3xl font-bold tracking-tight text-neutral-900">Iscrizioni</h1>
                 <p className="text-sm text-neutral-400">Clicca su una riga per il dettaglio</p>
               </div>
               <form onSubmit={cerca} className="flex gap-2">
@@ -473,7 +474,7 @@ export default function DashboardSegreteria() {
                       >
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-2.5">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-court to-court-light text-xs font-semibold text-white">
                               {iniziali(i.atleta_nome, i.atleta_cognome)}
                             </span>
                             <div>
@@ -549,59 +550,147 @@ export default function DashboardSegreteria() {
 
         {vista === "certificati" && (
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Certificati e tesseramenti</h1>
+            <h1 className="font-display text-3xl font-bold tracking-tight text-neutral-900">Certificati medici</h1>
             <p className="text-sm text-neutral-400">
               Le righe più urgenti sono in cima. Clicca su un nominativo per aprire la scheda.
             </p>
 
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard etichetta="Cert. da sistemare" valore={conCertificatoDaSistemare} icona="🩺" tono="rosso" />
-              <StatCard etichetta="Cert. in scadenza" valore={conCertificatoInScadenza} icona="⏳" tono="ambra" />
-              <StatCard etichetta="Tess. da sistemare" valore={conTesseramentoDaSistemare} icona="🎟️" tono="rosso" />
-              <StatCard etichetta="Tess. in scadenza" valore={conTesseramentoInScadenza} icona="⏳" tono="ambra" />
+              <StatCard etichetta="Da sistemare" valore={conCertificatoDaSistemare} icona="🩺" tono="rosso" />
+              <StatCard etichetta="In scadenza" valore={conCertificatoInScadenza} icona="⏳" tono="ambra" />
+              <StatCard
+                etichetta="In regola"
+                valore={iscrizioni.filter((i) => statoCertificato(i).livello === "verde").length}
+                icona="✅"
+                tono="verde"
+              />
+              <StatCard etichetta="Totale" valore={iscrizioni.length} icona="📋" />
             </div>
 
-            <div className="mt-5 overflow-x-auto rounded-2xl border border-black/[0.06] bg-white p-2">
+            <div className="mt-5 overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="text-xs uppercase tracking-wide text-neutral-400">
-                    <th className="px-3 pb-3 pt-3 font-medium">Atleta</th>
-                    <th className="px-3 pb-3 pt-3 font-medium">Certificato</th>
-                    <th className="px-3 pb-3 pt-3 font-medium">Scadenza cert.</th>
-                    <th className="px-3 pb-3 pt-3 font-medium">Tesseramento</th>
-                    <th className="px-3 pb-3 pt-3 font-medium">Scadenza tess.</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Atleta</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Stato</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Tipo</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Scadenza</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black/[0.05]">
-                  {iscrizioniOrdinatePerAllerta.map((i: any) => (
-                    <tr
-                      key={i.id}
-                      onClick={() => {
-                        setVista("iscrizioni");
-                        setEspansa(i.id);
-                      }}
-                      className="cursor-pointer hover:bg-neutral-50"
-                    >
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
-                            {iniziali(i.atleta_nome, i.atleta_cognome)}
-                          </span>
-                          <p className="font-medium text-neutral-900">
-                            {i.atleta_nome} {i.atleta_cognome}
-                          </p>
-                        </div>
+                  {[...iscrizioni]
+                    .sort((a, b) => punteggioLivello[statoCertificato(a).livello] - punteggioLivello[statoCertificato(b).livello])
+                    .map((i: any) => {
+                      const stato = statoCertificato(i);
+                      const barra = stato.livello === "rosso" ? "border-l-red-400" : stato.livello === "giallo" ? "border-l-amber-400" : "border-l-emerald-400";
+                      return (
+                        <tr
+                          key={i.id}
+                          onClick={() => {
+                            setVista("iscrizioni");
+                            setEspansa(i.id);
+                          }}
+                          className={`cursor-pointer border-l-4 ${barra} hover:bg-neutral-50`}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-court to-court-light text-xs font-semibold text-white">
+                                {iniziali(i.atleta_nome, i.atleta_cognome)}
+                              </span>
+                              <p className="font-medium text-neutral-900">
+                                {i.atleta_nome} {i.atleta_cognome}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Pallino stato={stato} />
+                          </td>
+                          <td className="px-4 py-3 text-neutral-500">
+                            {i.certificato_tipo === "agonistico" ? "Agonistico" : i.certificato_tipo === "non_agonistico" ? "Non agonistico" : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-neutral-500">{formattaData(i.certificato_scadenza)}</td>
+                        </tr>
+                      );
+                    })}
+                  {iscrizioni.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-neutral-400">
+                        Nessuna iscrizione ricevuta ancora.
                       </td>
-                      <td className="px-3 py-3">
-                        <Pallino stato={statoCertificato(i)} />
-                      </td>
-                      <td className="px-3 py-3 text-neutral-500">{formattaData(i.certificato_scadenza)}</td>
-                      <td className="px-3 py-3">
-                        <Pallino stato={statoTesseramento(i)} />
-                      </td>
-                      <td className="px-3 py-3 text-neutral-500">{formattaData(i.tesseramento_scadenza)}</td>
                     </tr>
-                  ))}
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {vista === "tesseramenti" && (
+          <div>
+            <h1 className="font-display text-3xl font-bold tracking-tight text-neutral-900">Tesseramenti FITP</h1>
+            <p className="text-sm text-neutral-400">
+              Le righe più urgenti sono in cima. Clicca su un nominativo per aprire la scheda.
+            </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatCard etichetta="Da sistemare" valore={conTesseramentoDaSistemare} icona="🎟️" tono="rosso" />
+              <StatCard etichetta="In scadenza" valore={conTesseramentoInScadenza} icona="⏳" tono="ambra" />
+              <StatCard
+                etichetta="In regola"
+                valore={iscrizioni.filter((i) => statoTesseramento(i).livello === "verde").length}
+                icona="✅"
+                tono="verde"
+              />
+              <StatCard etichetta="Totale" valore={iscrizioni.length} icona="📋" />
+            </div>
+
+            <div className="mt-5 overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-neutral-400">
+                    <th className="px-4 pb-3 pt-4 font-medium">Atleta</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Stato</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Numero tessera</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Tipo</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Scadenza</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.05]">
+                  {[...iscrizioni]
+                    .sort((a, b) => punteggioLivello[statoTesseramento(a).livello] - punteggioLivello[statoTesseramento(b).livello])
+                    .map((i: any) => {
+                      const stato = statoTesseramento(i);
+                      const barra = stato.livello === "rosso" ? "border-l-red-400" : stato.livello === "giallo" ? "border-l-amber-400" : "border-l-emerald-400";
+                      return (
+                        <tr
+                          key={i.id}
+                          onClick={() => {
+                            setVista("iscrizioni");
+                            setEspansa(i.id);
+                          }}
+                          className={`cursor-pointer border-l-4 ${barra} hover:bg-neutral-50`}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-court to-court-light text-xs font-semibold text-white">
+                                {iniziali(i.atleta_nome, i.atleta_cognome)}
+                              </span>
+                              <p className="font-medium text-neutral-900">
+                                {i.atleta_nome} {i.atleta_cognome}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Pallino stato={stato} />
+                          </td>
+                          <td className="px-4 py-3 text-neutral-500">{i.tesseramento_numero || "—"}</td>
+                          <td className="px-4 py-3 text-neutral-500">
+                            {i.tesseramento_tipo === "agonistico" ? "Agonistico" : i.tesseramento_tipo === "non_agonistico" ? "Non agonistico" : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-neutral-500">{formattaData(i.tesseramento_scadenza)}</td>
+                        </tr>
+                      );
+                    })}
                   {iscrizioni.length === 0 && (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-neutral-400">
@@ -615,11 +704,12 @@ export default function DashboardSegreteria() {
           </div>
         )}
 
+
         {vista === "pagamenti" && (
           <div>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Registro incassi</h1>
+                <h1 className="font-display text-3xl font-bold tracking-tight text-neutral-900">Registro incassi</h1>
                 <p className="text-sm text-neutral-400">Ultimi pagamenti registrati, più recenti in alto</p>
               </div>
               <button
@@ -677,7 +767,7 @@ export default function DashboardSegreteria() {
 
         {vista === "listino" && (
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Listino e quota</h1>
+            <h1 className="font-display text-3xl font-bold tracking-tight text-neutral-900">Listino e quota</h1>
             <p className="text-sm text-neutral-400">Prezzi dei corsi e quota d'iscrizione</p>
 
             <section className="mt-5 rounded-2xl border border-black/[0.06] bg-white p-6">
@@ -1106,6 +1196,54 @@ function DettaglioIscrizione({
         </button>
       </div>
 
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Certificato medico</h4>
+            <Pallino stato={statoCertificato(r)} />
+          </div>
+          {modificaAttiva ? (
+            <div className="space-y-3">
+              {CAMPI_CERTIFICATO.map((c) => (
+                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
+              ))}
+            </div>
+          ) : (
+            <dl className="space-y-1 text-sm">
+              <Riga
+                etichetta="Tipo"
+                valore={r.certificato_tipo === "agonistico" ? "Agonistico" : r.certificato_tipo === "non_agonistico" ? "Non agonistico" : null}
+              />
+              <Riga etichetta="Scadenza" valore={formattaData(r.certificato_scadenza)} />
+            </dl>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Tesseramento FITP</h4>
+            <Pallino stato={statoTesseramento(r)} />
+          </div>
+          {modificaAttiva ? (
+            <div className="space-y-3">
+              {CAMPI_TESSERAMENTO.map((c) => (
+                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
+              ))}
+            </div>
+          ) : (
+            <dl className="space-y-1 text-sm">
+              <Riga etichetta="Numero tessera" valore={r.tesseramento_numero} />
+              <Riga
+                etichetta="Tipo"
+                valore={r.tesseramento_tipo === "agonistico" ? "Agonistico" : r.tesseramento_tipo === "non_agonistico" ? "Non agonistico" : null}
+              />
+              <Riga etichetta="Data tesseramento" valore={formattaData(r.tesseramento_data)} />
+              <Riga etichetta="Scadenza tessera" valore={formattaData(r.tesseramento_scadenza)} />
+            </dl>
+          )}
+        </div>
+      </div>
+
       <div className="mb-6 overflow-hidden rounded-2xl border border-black/[0.06]">
         <div className="flex items-center justify-between bg-navy px-4 py-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-white/70">
@@ -1257,7 +1395,12 @@ function DettaglioIscrizione({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <details className="group rounded-2xl border border-black/[0.06] bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 text-sm font-medium text-neutral-500">
+          <span>Altri dati — anagrafica, fatturazione, consensi, informazioni tecniche</span>
+          <span className="text-neutral-300 transition-transform group-open:rotate-180">⌄</span>
+        </summary>
+        <div className="grid grid-cols-1 gap-6 border-t border-black/[0.05] px-5 py-5 sm:grid-cols-2">
         <Sezione titolo="Allievo">
           {modificaAttiva
             ? CAMPI_TESTO.map((c) => (
@@ -1380,36 +1523,6 @@ function DettaglioIscrizione({
             )}
         </Sezione>
 
-        <Sezione titolo="Certificato medico">
-          {modificaAttiva
-            ? CAMPI_CERTIFICATO.map((c) => (
-                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
-              ))
-            : (
-              <>
-                <Riga etichetta="Stato" valore={statoCertificato(r).testo} />
-                <Riga etichetta="Tipo" valore={r.certificato_tipo === "agonistico" ? "Agonistico" : r.certificato_tipo === "non_agonistico" ? "Non agonistico" : null} />
-                <Riga etichetta="Scadenza" valore={formattaData(r.certificato_scadenza)} />
-              </>
-            )}
-        </Sezione>
-
-        <Sezione titolo="Tesseramento FITP">
-          {modificaAttiva
-            ? CAMPI_TESSERAMENTO.map((c) => (
-                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
-              ))
-            : (
-              <>
-                <Riga etichetta="Stato" valore={statoTesseramento(r).testo} />
-                <Riga etichetta="Numero tessera" valore={r.tesseramento_numero} />
-                <Riga etichetta="Tipo" valore={r.tesseramento_tipo === "agonistico" ? "Agonistico" : r.tesseramento_tipo === "non_agonistico" ? "Non agonistico" : null} />
-                <Riga etichetta="Data tesseramento" valore={formattaData(r.tesseramento_data)} />
-                <Riga etichetta="Scadenza tessera" valore={formattaData(r.tesseramento_scadenza)} />
-              </>
-            )}
-        </Sezione>
-
         <Sezione titolo="Dati tecnici">
           <Riga etichetta="Inviata il" valore={formattaOra(r.created_at)} />
           <Riga etichetta="Confermata" valore={r.confermata} />
@@ -1419,7 +1532,8 @@ function DettaglioIscrizione({
           <Riga etichetta="Indirizzo IP" valore={r.ip_address} />
           <Riga etichetta="Dispositivo/browser" valore={r.user_agent} />
         </Sezione>
-      </div>
+        </div>
+      </details>
     </div>
   );
 }
