@@ -251,6 +251,10 @@ create table if not exists rate_pagamento (
   pagata boolean not null default false,
   data_pagamento date,
   metodo_pagamento text,
+  ricevuta_numero text,
+  ricevuta_blocco text,
+  fattura_numero text,
+  fattura_data date,
   ordine int not null default 0,
   created_at timestamptz not null default now()
 );
@@ -260,6 +264,10 @@ create index if not exists idx_rate_pagata on rate_pagamento (pagata, data_pagam
 
 alter table rate_pagamento enable row level security;
 alter table rate_pagamento add column if not exists metodo_pagamento text;
+alter table rate_pagamento add column if not exists ricevuta_numero text;
+alter table rate_pagamento add column if not exists ricevuta_blocco text;
+alter table rate_pagamento add column if not exists fattura_numero text;
+alter table rate_pagamento add column if not exists fattura_data date;
 
 alter table impostazioni enable row level security;
 alter table corsi enable row level security;

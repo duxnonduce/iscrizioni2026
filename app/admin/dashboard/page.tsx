@@ -78,6 +78,19 @@ function statoTesseramento(r: any): Stato {
   return { livello: "verde", testo: "Tess. OK" };
 }
 
+function testoDocumentoFiscale(r: any): string {
+  const parti: string[] = [];
+  if (r.ricevuta_numero) {
+    parti.push(`ricevuta non fiscale n.${r.ricevuta_numero}${r.ricevuta_blocco ? ` (blocco ${r.ricevuta_blocco})` : ""}`);
+  }
+  parti.push(
+    r.fattura_numero
+      ? `fattura n.${r.fattura_numero}${r.fattura_data ? ` emessa il ${formattaData(r.fattura_data)}` : ""}`
+      : "fattura fiscale ancora non emessa"
+  );
+  return parti.length ? parti.join(" — ") : "Nessun documento associato";
+}
+
 function Pallino({ stato }: { stato: Stato }) {
   const stili: Record<Livello, string> = {
     verde: "bg-emerald-50 text-emerald-700",
@@ -103,6 +116,7 @@ const VISTE = [
   { id: "certificati", etichetta: "Certificati", icona: "🩺" },
   { id: "tesseramenti", etichetta: "Tesseramenti", icona: "🎟️" },
   { id: "pagamenti", etichetta: "Incassi", icona: "💳" },
+  { id: "fiscale", etichetta: "Fiscale", icona: "📑" },
   { id: "listino", etichetta: "Listino", icona: "🎾" },
 ] as const;
 
@@ -751,12 +765,88 @@ export default function DashboardSegreteria() {
                     <tr key={inc.id}>
                       <td className="px-3 py-2.5 text-neutral-500">{formattaData(inc.data_pagamento)}</td>
                       <td className="px-3 py-2.5 text-neutral-900">
-                        {inc.iscrizioni?.atleta_nome} {inc.iscrizioni?.atleta_cognome}
+                        <p>
+                          {inc.iscrizioni?.atleta_nome} {inc.iscrizioni?.atleta_cognome}
+                        </p>
+                        <p className="text-xs text-neutral-400">{testoDocumentoFiscale(inc)}</p>
                       </td>
                       <td className="px-3 py-2.5 font-medium text-neutral-900">{inc.iscrizioni?.codice}</td>
                       <td className="px-3 py-2.5 text-neutral-500">{inc.tipo}</td>
                       <td className="px-3 py-2.5 text-neutral-400">{inc.metodo_pagamento || "—"}</td>
                       <td className="px-3 py-2.5 font-medium text-emerald-600">{formattaEuro(inc.importo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {vista === "fiscale" && (
+          <div>
+            <h1 className="font-display text-3xl font-bold tracking-tight text-neutral-900">Documenti fiscali</h1>
+            <p className="text-sm text-neutral-400">
+              Ricevute non fiscali e fatture associate a ogni pagamento incassato
+            </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatCard etichetta="Incassi totali" valore={incassi.length} icona="💳" />
+              <StatCard
+                etichetta="Con ricevuta"
+                valore={incassi.filter((inc: any) => inc.ricevuta_numero).length}
+                icona="🧾"
+                tono="verde"
+              />
+              <StatCard
+                etichetta="Fatture emesse"
+                valore={incassi.filter((inc: any) => inc.fattura_numero).length}
+                icona="📄"
+                tono="verde"
+              />
+              <StatCard
+                etichetta="Fatture da emettere"
+                valore={incassi.filter((inc: any) => !inc.fattura_numero).length}
+                icona="⚠️"
+                tono="ambra"
+              />
+            </div>
+
+            <div className="mt-5 overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-neutral-400">
+                    <th className="px-4 pb-3 pt-4 font-medium">Data</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Atleta</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Importo</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Documenti</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.05]">
+                  {incassi.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-neutral-400">
+                        Nessun incasso registrato ancora.
+                      </td>
+                    </tr>
+                  )}
+                  {incassi.map((inc: any) => (
+                    <tr
+                      key={inc.id}
+                      onClick={() => {
+                        setVista("iscrizioni");
+                        setEspansa(inc.iscrizione_id);
+                      }}
+                      className={`cursor-pointer border-l-4 hover:bg-neutral-50 ${
+                        inc.fattura_numero ? "border-l-emerald-400" : "border-l-amber-400"
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-neutral-500">{formattaData(inc.data_pagamento)}</td>
+                      <td className="px-4 py-3 text-neutral-900">
+                        {inc.iscrizioni?.atleta_nome} {inc.iscrizioni?.atleta_cognome}
+                        <span className="ml-1 text-xs text-neutral-400">({inc.iscrizioni?.codice})</span>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-neutral-900">{formattaEuro(inc.importo)}</td>
+                      <td className="px-4 py-3 text-neutral-500">{testoDocumentoFiscale(inc)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1387,6 +1477,58 @@ function DettaglioIscrizione({
                         </>
                       )}
                     </div>
+                    {riga.pagata && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-3 pl-6 text-xs text-neutral-400">
+                        <label className="flex items-center gap-1">
+                          Ricevuta n.
+                          <input
+                            type="text"
+                            className="w-16 rounded border border-black/[0.06] bg-white px-1.5 py-0.5 text-neutral-900"
+                            defaultValue={riga.ricevuta_numero ?? ""}
+                            onBlur={(e) =>
+                              e.target.value !== (riga.ricevuta_numero ?? "") &&
+                              modificaCampoRata(riga.id, "ricevuta_numero", e.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="flex items-center gap-1">
+                          Blocco
+                          <input
+                            type="text"
+                            className="w-14 rounded border border-black/[0.06] bg-white px-1.5 py-0.5 text-neutral-900"
+                            defaultValue={riga.ricevuta_blocco ?? ""}
+                            onBlur={(e) =>
+                              e.target.value !== (riga.ricevuta_blocco ?? "") &&
+                              modificaCampoRata(riga.id, "ricevuta_blocco", e.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="flex items-center gap-1">
+                          Fattura n.
+                          <input
+                            type="text"
+                            className="w-16 rounded border border-black/[0.06] bg-white px-1.5 py-0.5 text-neutral-900"
+                            defaultValue={riga.fattura_numero ?? ""}
+                            onBlur={(e) =>
+                              e.target.value !== (riga.fattura_numero ?? "") &&
+                              modificaCampoRata(riga.id, "fattura_numero", e.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="flex items-center gap-1">
+                          Emessa il
+                          <input
+                            type="date"
+                            className="rounded border border-black/[0.06] bg-white px-1.5 py-0.5 text-neutral-900"
+                            defaultValue={riga.fattura_data ?? ""}
+                            onBlur={(e) =>
+                              e.target.value !== (riga.fattura_data ?? "") &&
+                              modificaCampoRata(riga.id, "fattura_data", e.target.value)
+                            }
+                          />
+                        </label>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

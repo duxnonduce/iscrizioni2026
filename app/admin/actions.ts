@@ -228,6 +228,10 @@ export async function aggiornaRata(
     scadenza?: string | null;
     data_pagamento?: string | null;
     metodo_pagamento?: string | null;
+    ricevuta_numero?: string | null;
+    ricevuta_blocco?: string | null;
+    fattura_numero?: string | null;
+    fattura_data?: string | null;
   }
 ) {
   await verificaSessione();
@@ -331,7 +335,9 @@ export async function elencoIncassi(limite: number = 100) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("rate_pagamento")
-    .select("id, tipo, importo, data_pagamento, metodo_pagamento, iscrizioni(codice, atleta_nome, atleta_cognome)")
+    .select(
+      "id, iscrizione_id, tipo, importo, data_pagamento, metodo_pagamento, ricevuta_numero, ricevuta_blocco, fattura_numero, fattura_data, iscrizioni(codice, atleta_nome, atleta_cognome)"
+    )
     .eq("pagata", true)
     .order("data_pagamento", { ascending: false })
     .limit(limite);
