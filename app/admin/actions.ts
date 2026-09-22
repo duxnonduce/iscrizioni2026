@@ -128,6 +128,8 @@ const CAMPI_MODIFICABILI = new Set([
   "consenso_dati_corretti", "consenso_regolamento", "consenso_privacy",
   "consenso_autorizzazione", "consenso_promozionale", "consenso_foto_video",
   "consenso_whatsapp_gruppi",
+  "certificato_tipo", "certificato_scadenza",
+  "tesseramento_numero", "tesseramento_tipo", "tesseramento_data", "tesseramento_scadenza",
 ]);
 
 export async function aggiornaIscrizione(id: string, campi: Record<string, unknown>) {

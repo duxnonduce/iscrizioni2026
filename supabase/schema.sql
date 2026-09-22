@@ -208,6 +208,14 @@ create table if not exists iscrizioni (
   stampata boolean not null default false,
   stampata_il timestamptz,
 
+  -- Certificato medico e tesseramento FITP
+  certificato_tipo text,
+  certificato_scadenza date,
+  tesseramento_numero text,
+  tesseramento_tipo text,
+  tesseramento_data date,
+  tesseramento_scadenza date,
+
   created_at timestamptz not null default now()
 );
 
@@ -221,6 +229,14 @@ alter table iscrizioni add column if not exists confermata_il timestamptz;
 alter table iscrizioni add column if not exists taglia_kit text;
 alter table iscrizioni add column if not exists stampata boolean not null default false;
 alter table iscrizioni add column if not exists stampata_il timestamptz;
+
+-- Certificato medico e tesseramento FITP, gestiti dalla segreteria
+alter table iscrizioni add column if not exists certificato_tipo text; -- 'agonistico' | 'non_agonistico'
+alter table iscrizioni add column if not exists certificato_scadenza date;
+alter table iscrizioni add column if not exists tesseramento_numero text;
+alter table iscrizioni add column if not exists tesseramento_tipo text; -- 'agonistico' | 'non_agonistico'
+alter table iscrizioni add column if not exists tesseramento_data date;
+alter table iscrizioni add column if not exists tesseramento_scadenza date;
 
 -- ===================================================================
 -- Gestione pagamenti: una riga per ogni rata (quota + rate del corso)

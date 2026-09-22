@@ -43,15 +43,64 @@ function formattaOra(iso: string | null): string {
   return new Date(iso).toLocaleString("it-IT");
 }
 
-const ORDINE_TAGLIE = ["5/6", "7/8", "9/10", "11/12", "13/14", "15/16", "XXS", "XS", "S", "M", "L", "XL", "XXL"];
-
 function iniziali(nome: string, cognome: string): string {
   return `${(nome || "?")[0] ?? ""}${(cognome || "")[0] ?? ""}`.toUpperCase();
+}
+
+const ORDINE_TAGLIE = ["5/6", "7/8", "9/10", "11/12", "13/14", "15/16", "XXS", "XS", "S", "M", "L", "XL", "XXL"];
+
+const GIORNI_PREAVVISO = 15;
+
+type Livello = "verde" | "giallo" | "rosso";
+type Stato = { livello: Livello; testo: string };
+
+function oggiISO(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+function traGiorniISO(giorni: number): string {
+  return new Date(Date.now() + giorni * 86400000).toISOString().split("T")[0];
+}
+
+function statoCertificato(r: any): Stato {
+  if (!r.certificato_scadenza) return { livello: "rosso", testo: "Cert. mancante" };
+  if (r.certificato_scadenza < oggiISO()) return { livello: "rosso", testo: "Cert. scaduto" };
+  if (r.certificato_scadenza <= traGiorniISO(GIORNI_PREAVVISO)) return { livello: "giallo", testo: "Cert. in scadenza" };
+  return { livello: "verde", testo: "Cert. OK" };
+}
+
+function statoTesseramento(r: any): Stato {
+  if (!r.tesseramento_numero) return { livello: "rosso", testo: "Tess. mancante" };
+  if (r.tesseramento_scadenza) {
+    if (r.tesseramento_scadenza < oggiISO()) return { livello: "rosso", testo: "Tess. scaduta" };
+    if (r.tesseramento_scadenza <= traGiorniISO(GIORNI_PREAVVISO)) return { livello: "giallo", testo: "Tess. in scadenza" };
+  }
+  return { livello: "verde", testo: "Tess. OK" };
+}
+
+function Pallino({ stato }: { stato: Stato }) {
+  const stili: Record<Livello, string> = {
+    verde: "bg-emerald-50 text-emerald-700",
+    giallo: "bg-amber-50 text-amber-700",
+    rosso: "bg-red-50 text-red-700",
+  };
+  const punto: Record<Livello, string> = {
+    verde: "bg-emerald-500",
+    giallo: "bg-amber-500",
+    rosso: "bg-red-500",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ${stili[stato.livello]}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${punto[stato.livello]}`} />
+      {stato.testo}
+    </span>
+  );
 }
 
 const VISTE = [
   { id: "panoramica", etichetta: "Panoramica", icona: "🏠" },
   { id: "iscrizioni", etichetta: "Iscrizioni", icona: "📋" },
+  { id: "certificati", etichetta: "Certificati", icona: "🩺" },
   { id: "pagamenti", etichetta: "Incassi", icona: "💳" },
   { id: "listino", etichetta: "Listino", icona: "🎾" },
 ] as const;
@@ -64,7 +113,7 @@ function BarraPagamento({
   riepilogo?: { totale: number; pagato: number; scaduto: boolean; numeroRate: number; numeroPagate: number };
 }) {
   if (!riepilogo || riepilogo.numeroRate === 0) {
-    return <span className="text-xs text-court-dark/30">—</span>;
+    return <span className="text-xs text-neutral-300">—</span>;
   }
   const percentuale = riepilogo.totale > 0 ? Math.round((riepilogo.pagato / riepilogo.totale) * 100) : 0;
   const completo = percentuale >= 100;
@@ -75,16 +124,16 @@ function BarraPagamento({
       <div className="flex items-center justify-between text-xs">
         <span
           className={`font-semibold ${
-            riepilogo.scaduto ? "text-red-600" : completo ? "text-emerald-600" : "text-court-dark/60"
+            riepilogo.scaduto ? "text-red-600" : completo ? "text-emerald-600" : "text-neutral-500"
           }`}
         >
           {riepilogo.scaduto ? "Scaduto" : `${percentuale}%`}
         </span>
-        <span className="text-court-dark/40">
+        <span className="text-neutral-400">
           {riepilogo.numeroPagate}/{riepilogo.numeroRate}
         </span>
       </div>
-      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-court/10">
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
         <div className={`h-full rounded-full ${coloreBarra}`} style={{ width: `${Math.min(100, percentuale)}%` }} />
       </div>
     </div>
@@ -104,20 +153,20 @@ function StatCard({
 }) {
   const sfondoIcona =
     tono === "verde"
-      ? "bg-emerald-100"
+      ? "bg-emerald-50"
       : tono === "ambra"
-        ? "bg-amber-100"
+        ? "bg-amber-50"
         : tono === "rosso"
-          ? "bg-red-100"
-          : "bg-ace";
+          ? "bg-red-50"
+          : "bg-neutral-100";
   return (
-    <div className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-court/5">
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl ${sfondoIcona}`}>
+    <div className="flex items-center gap-3 rounded-2xl border border-black/[0.06] bg-white p-4">
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${sfondoIcona}`}>
         {icona}
       </span>
       <div className="min-w-0">
-        <p className="truncate text-xs font-medium text-court-dark/50">{etichetta}</p>
-        <p className="truncate font-display text-xl font-bold text-court-dark">{valore}</p>
+        <p className="truncate text-[11px] font-medium text-neutral-400">{etichetta}</p>
+        <p className="truncate text-lg font-semibold tracking-tight text-neutral-900">{valore}</p>
       </div>
     </div>
   );
@@ -235,405 +284,482 @@ export default function DashboardSegreteria() {
   const confermateCount = iscrizioni.filter((i) => (i as any).confermata).length;
   const daConfermareCount = iscrizioni.length - confermateCount;
 
-  return (
-    <div className="min-h-screen bg-chalk lg:flex">
-      {/* Sidebar — desktop */}
-      <aside className="hidden w-60 shrink-0 flex-col bg-navy px-4 py-6 lg:flex">
-        <img src="/logo-micolani.png" alt="Micolani Tennis" className="h-10 w-auto" />
-        <nav className="mt-8 flex flex-1 flex-col gap-1">
-          {VISTE.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => setVista(v.id)}
-              className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors ${
-                vista === v.id ? "bg-white text-court-dark" : "text-white/70 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <span className="text-lg">{v.icona}</span>
-              {v.etichetta}
-            </button>
-          ))}
-        </nav>
-        <button
-          onClick={esci}
-          className="rounded-2xl border border-white/15 px-3.5 py-2.5 text-left text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white"
-        >
-          ↩ Esci
-        </button>
-      </aside>
+  const conCertificatoDaSistemare = iscrizioni.filter((i) => statoCertificato(i).livello === "rosso").length;
+  const conCertificatoInScadenza = iscrizioni.filter((i) => statoCertificato(i).livello === "giallo").length;
+  const conTesseramentoDaSistemare = iscrizioni.filter((i) => statoTesseramento(i).livello === "rosso").length;
+  const conTesseramentoInScadenza = iscrizioni.filter((i) => statoTesseramento(i).livello === "giallo").length;
 
-      <div className="flex-1">
-        {/* Top bar — mobile */}
-        <div className="sticky top-0 z-20 bg-navy px-5 py-4 lg:hidden">
-          <div className="flex items-center justify-between">
-            <img src="/logo-micolani.png" alt="Micolani Tennis" className="h-8 w-auto" />
-            <button onClick={esci} className="text-sm font-medium text-white/70 hover:text-white">
-              Esci
-            </button>
-          </div>
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+  const punteggioLivello: Record<Livello, number> = { rosso: 0, giallo: 1, verde: 2 };
+  const iscrizioniOrdinatePerAllerta = [...iscrizioni].sort((a, b) => {
+    const pa = Math.min(punteggioLivello[statoCertificato(a).livello], punteggioLivello[statoTesseramento(a).livello]);
+    const pb = Math.min(punteggioLivello[statoCertificato(b).livello], punteggioLivello[statoTesseramento(b).livello]);
+    return pa - pb;
+  });
+
+  return (
+    <div className="min-h-screen bg-[#F5F5F7]">
+      <header className="sticky top-0 z-20 border-b border-black/[0.06] bg-white/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
+          <img src="/logo-micolani.png" alt="Micolani Tennis" className="h-8 w-auto shrink-0 rounded-md" />
+
+          <nav className="flex items-center gap-0.5 overflow-x-auto rounded-full bg-neutral-100 p-1">
             {VISTE.map((v) => (
               <button
                 key={v.id}
                 onClick={() => setVista(v.id)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                  vista === v.id ? "bg-white text-court-dark" : "bg-white/10 text-white/70"
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
+                  vista === v.id ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
                 }`}
               >
                 <span>{v.icona}</span>
-                {v.etichetta}
+                <span className="hidden sm:inline">{v.etichetta}</span>
               </button>
             ))}
-          </div>
+          </nav>
+
+          <button
+            onClick={esci}
+            className="shrink-0 rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-neutral-700"
+          >
+            Esci
+          </button>
         </div>
+      </header>
 
-        <div className="mx-auto max-w-5xl px-5 py-8">
-          {vista === "panoramica" && (
-            <div>
-              <h1 className="font-display text-2xl font-bold text-court-dark">
-                Ciao! 👋 Ecco la situazione di oggi
-              </h1>
-              <p className="mt-1 text-sm text-court-dark/50">
-                {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
-              </p>
+      <main className="mx-auto max-w-6xl px-5 py-8">
+        {vista === "panoramica" && (
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
+              Ciao! Ecco la situazione di oggi
+            </h1>
+            <p className="mt-1 text-sm text-neutral-400">
+              {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+            </p>
 
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <StatCard etichetta="Iscrizioni" valore={iscrizioni.length} icona="📋" />
-                <StatCard etichetta="Confermate" valore={confermateCount} icona="✅" tono="verde" />
-                <StatCard etichetta="Da confermare" valore={daConfermareCount} icona="⏳" tono="ambra" />
-                <StatCard
-                  etichetta="Da stampare"
-                  valore={iscrizioni.filter((i) => !(i as any).stampata).length}
-                  icona="🖨️"
-                  tono="ambra"
-                />
-                <StatCard etichetta="Totale pagato" valore={formattaEuro(pagamenti.totalePagato)} icona="💰" tono="verde" />
-                <StatCard etichetta="Totale dovuto" valore={formattaEuro(pagamenti.totaleDovuto)} icona="🧾" />
-                <StatCard etichetta="Totale scaduto" valore={formattaEuro(pagamenti.totaleScaduto)} icona="⚠️" tono="rosso" />
-                <StatCard
-                  etichetta="Taglie richieste"
-                  valore={Object.values(taglie).reduce((t, n) => t + n, 0)}
-                  icona="👕"
-                />
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatCard etichetta="Iscrizioni" valore={iscrizioni.length} icona="📋" />
+              <StatCard etichetta="Confermate" valore={confermateCount} icona="✅" tono="verde" />
+              <StatCard etichetta="Da confermare" valore={daConfermareCount} icona="⏳" tono="ambra" />
+              <StatCard
+                etichetta="Da stampare"
+                valore={iscrizioni.filter((i) => !(i as any).stampata).length}
+                icona="🖨️"
+                tono="ambra"
+              />
+              <StatCard etichetta="Totale pagato" valore={formattaEuro(pagamenti.totalePagato)} icona="💰" tono="verde" />
+              <StatCard etichetta="Totale dovuto" valore={formattaEuro(pagamenti.totaleDovuto)} icona="🧾" />
+              <StatCard etichetta="Totale scaduto" valore={formattaEuro(pagamenti.totaleScaduto)} icona="⚠️" tono="rosso" />
+              <StatCard
+                etichetta="Taglie richieste"
+                valore={Object.values(taglie).reduce((t, n) => t + n, 0)}
+                icona="👕"
+              />
+            </div>
+
+            <button
+              onClick={() => setVista("certificati")}
+              className="mt-4 block w-full rounded-2xl border border-black/[0.06] bg-white p-4 text-left hover:border-black/[0.1]"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-neutral-900">🩺 Certificati e tesseramenti</p>
+                <span className="text-sm text-neutral-400">Vedi tutto →</span>
               </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Pallino stato={{ livello: "rosso", testo: `${conCertificatoDaSistemare} certificati da sistemare` }} />
+                <Pallino stato={{ livello: "giallo", testo: `${conCertificatoInScadenza} in scadenza` }} />
+                <Pallino stato={{ livello: "rosso", testo: `${conTesseramentoDaSistemare} tessere da sistemare` }} />
+                <Pallino stato={{ livello: "giallo", testo: `${conTesseramentoInScadenza} in scadenza` }} />
+              </div>
+            </button>
 
-              <div className="mt-8 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-court/5">
-                <h2 className="font-display text-lg font-semibold text-court-dark">Ultime iscrizioni</h2>
-                <div className="mt-3 divide-y divide-court/5">
-                  {iscrizioni.slice(0, 5).map((i) => (
-                    <button
+            <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white p-5">
+              <h2 className="text-base font-semibold text-neutral-900">Ultime iscrizioni</h2>
+              <div className="mt-3 divide-y divide-black/[0.05]">
+                {iscrizioni.slice(0, 5).map((i) => (
+                  <button
+                    key={i.id}
+                    onClick={() => {
+                      setVista("iscrizioni");
+                      setEspansa(i.id);
+                    }}
+                    className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-neutral-50"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
+                      {iniziali(i.atleta_nome, i.atleta_cognome)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-neutral-900">
+                        {i.atleta_nome} {i.atleta_cognome}
+                      </p>
+                      <p className="truncate text-xs text-neutral-400">{(i as any).corsi?.nome}</p>
+                    </span>
+                    {(i as any).confermata ? (
+                      <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                        Confermata
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                        Da confermare
+                      </span>
+                    )}
+                  </button>
+                ))}
+                {iscrizioni.length === 0 && (
+                  <p className="py-4 text-sm text-neutral-400">Nessuna iscrizione ricevuta ancora.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {vista === "iscrizioni" && (
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Iscrizioni</h1>
+                <p className="text-sm text-neutral-400">Clicca su una riga per il dettaglio</p>
+              </div>
+              <form onSubmit={cerca} className="flex gap-2">
+                <input
+                  value={ricerca}
+                  onChange={(e) => setRicerca(e.target.value)}
+                  placeholder="Cerca per codice, nome, telefono…"
+                  className="w-56 rounded-full border border-black/[0.08] bg-white px-4 py-1.5 text-sm focus:border-neutral-400 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-neutral-700"
+                >
+                  Cerca
+                </button>
+              </form>
+            </div>
+
+            <div className="mt-5 overflow-x-auto rounded-2xl border border-black/[0.06] bg-white p-2">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-neutral-400">
+                    <th className="px-3 pb-3 pt-3 font-medium">Atleta</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Codice</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Contatto</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Corso</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Totale</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Pagamento</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Stato</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Stampa</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.05]">
+                  {caricamento && (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-neutral-400">
+                        Caricamento…
+                      </td>
+                    </tr>
+                  )}
+                  {!caricamento && iscrizioni.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-neutral-400">
+                        Nessuna anagrafica trovata.
+                      </td>
+                    </tr>
+                  )}
+                  {iscrizioni.map((i) => (
+                    <>
+                      <tr
+                        key={i.id}
+                        onClick={() => setEspansa(espansa === i.id ? null : i.id)}
+                        className="cursor-pointer transition-colors hover:bg-neutral-50"
+                      >
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
+                              {iniziali(i.atleta_nome, i.atleta_cognome)}
+                            </span>
+                            <div>
+                              <p className="font-medium text-neutral-900">
+                                {i.atleta_nome} {i.atleta_cognome}
+                              </p>
+                              <div className="mt-0.5 flex flex-wrap gap-1">
+                                {i.minorenne && <span className="text-xs text-neutral-400">minorenne</span>}
+                                <Pallino stato={statoCertificato(i)} />
+                                <Pallino stato={statoTesseramento(i)} />
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 font-medium text-neutral-900">{i.codice}</td>
+                        <td className="px-3 py-3 text-neutral-500">
+                          {i.minorenne ? i.genitore_telefono : i.atleta_telefono}
+                        </td>
+                        <td className="px-3 py-3 text-neutral-500">
+                          {(i as any).corsi?.nome ?? "-"}
+                          <span className="text-neutral-300"> · {i.frequenza_settimanale}x/sett.</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <p className="font-medium text-neutral-900">{formattaEuro(i.prezzo_totale)}</p>
+                          {i.numero_rate > 1 && (
+                            <p className="text-xs text-neutral-400">
+                              {i.numero_rate}×{formattaEuro(i.importo_rata)} + quota
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <BarraPagamento riepilogo={mappaPagamenti[i.id]} />
+                        </td>
+                        <td className="px-3 py-3">
+                          {(i as any).confermata ? (
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                              Confermata
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                              Da confermare
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          {(i as any).stampata ? (
+                            <span className="text-lg" title="Già stampata">
+                              🖨️✅
+                            </span>
+                          ) : (
+                            <span className="text-xs text-neutral-300">—</span>
+                          )}
+                        </td>
+                      </tr>
+                      {espansa === i.id && (
+                        <tr>
+                          <td colSpan={8} className="rounded-2xl bg-neutral-50 px-4 py-5">
+                            <DettaglioIscrizione
+                              i={i}
+                              onCambiato={() => caricaTutto(ricerca)}
+                              onStampata={() => segnaComeStampata(i.id)}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {vista === "certificati" && (
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Certificati e tesseramenti</h1>
+            <p className="text-sm text-neutral-400">
+              Le righe più urgenti sono in cima. Clicca su un nominativo per aprire la scheda.
+            </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatCard etichetta="Cert. da sistemare" valore={conCertificatoDaSistemare} icona="🩺" tono="rosso" />
+              <StatCard etichetta="Cert. in scadenza" valore={conCertificatoInScadenza} icona="⏳" tono="ambra" />
+              <StatCard etichetta="Tess. da sistemare" valore={conTesseramentoDaSistemare} icona="🎟️" tono="rosso" />
+              <StatCard etichetta="Tess. in scadenza" valore={conTesseramentoInScadenza} icona="⏳" tono="ambra" />
+            </div>
+
+            <div className="mt-5 overflow-x-auto rounded-2xl border border-black/[0.06] bg-white p-2">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-neutral-400">
+                    <th className="px-3 pb-3 pt-3 font-medium">Atleta</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Certificato</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Scadenza cert.</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Tesseramento</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Scadenza tess.</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.05]">
+                  {iscrizioniOrdinatePerAllerta.map((i: any) => (
+                    <tr
                       key={i.id}
                       onClick={() => {
                         setVista("iscrizioni");
                         setEspansa(i.id);
                       }}
-                      className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-chalk"
+                      className="cursor-pointer hover:bg-neutral-50"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ace text-xs font-semibold text-court-dark">
-                        {iniziali(i.atleta_nome, i.atleta_cognome)}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-court-dark">
-                          {i.atleta_nome} {i.atleta_cognome}
-                        </p>
-                        <p className="text-xs text-court-dark/40">{(i as any).corsi?.nome}</p>
-                      </span>
-                      {(i as any).confermata ? (
-                        <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                          Confermata
-                        </span>
-                      ) : (
-                        <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
-                          Da confermare
-                        </span>
-                      )}
-                    </button>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
+                            {iniziali(i.atleta_nome, i.atleta_cognome)}
+                          </span>
+                          <p className="font-medium text-neutral-900">
+                            {i.atleta_nome} {i.atleta_cognome}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <Pallino stato={statoCertificato(i)} />
+                      </td>
+                      <td className="px-3 py-3 text-neutral-500">{formattaData(i.certificato_scadenza)}</td>
+                      <td className="px-3 py-3">
+                        <Pallino stato={statoTesseramento(i)} />
+                      </td>
+                      <td className="px-3 py-3 text-neutral-500">{formattaData(i.tesseramento_scadenza)}</td>
+                    </tr>
                   ))}
                   {iscrizioni.length === 0 && (
-                    <p className="py-4 text-sm text-court-dark/40">Nessuna iscrizione ricevuta ancora.</p>
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-neutral-400">
+                        Nessuna iscrizione ricevuta ancora.
+                      </td>
+                    </tr>
                   )}
-                </div>
-              </div>
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
+        )}
 
-          {vista === "iscrizioni" && (
-            <div>
+        {vista === "pagamenti" && (
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Registro incassi</h1>
+                <p className="text-sm text-neutral-400">Ultimi pagamenti registrati, più recenti in alto</p>
+              </div>
+              <button
+                onClick={generaRate}
+                disabled={generandoRate}
+                className="rounded-full border border-black/[0.08] px-4 py-1.5 text-xs font-medium text-neutral-500 hover:bg-white disabled:opacity-60"
+              >
+                {generandoRate ? "Genero…" : "Genera rate mancanti"}
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <StatCard etichetta="Pagato" valore={formattaEuro(pagamenti.totalePagato)} icona="💰" tono="verde" />
+              <StatCard etichetta="Dovuto" valore={formattaEuro(pagamenti.totaleDovuto)} icona="🧾" />
+              <StatCard etichetta="Scaduto" valore={formattaEuro(pagamenti.totaleScaduto)} icona="⚠️" tono="rosso" />
+            </div>
+
+            <div className="mt-5 overflow-x-auto rounded-2xl border border-black/[0.06] bg-white p-2">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-neutral-400">
+                    <th className="px-3 pb-3 pt-3 font-medium">Data</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Atleta</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Codice</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Causale</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Metodo</th>
+                    <th className="px-3 pb-3 pt-3 font-medium">Importo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.05]">
+                  {incassi.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-neutral-400">
+                        Nessun incasso registrato ancora.
+                      </td>
+                    </tr>
+                  )}
+                  {incassi.map((inc: any) => (
+                    <tr key={inc.id}>
+                      <td className="px-3 py-2.5 text-neutral-500">{formattaData(inc.data_pagamento)}</td>
+                      <td className="px-3 py-2.5 text-neutral-900">
+                        {inc.iscrizioni?.atleta_nome} {inc.iscrizioni?.atleta_cognome}
+                      </td>
+                      <td className="px-3 py-2.5 font-medium text-neutral-900">{inc.iscrizioni?.codice}</td>
+                      <td className="px-3 py-2.5 text-neutral-500">{inc.tipo}</td>
+                      <td className="px-3 py-2.5 text-neutral-400">{inc.metodo_pagamento || "—"}</td>
+                      <td className="px-3 py-2.5 font-medium text-emerald-600">{formattaEuro(inc.importo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {vista === "listino" && (
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Listino e quota</h1>
+            <p className="text-sm text-neutral-400">Prezzi dei corsi e quota d'iscrizione</p>
+
+            <section className="mt-5 rounded-2xl border border-black/[0.06] bg-white p-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h1 className="font-display text-2xl font-bold text-court-dark">Iscrizioni</h1>
-                  <p className="text-sm text-court-dark/50">Clicca su una riga per il dettaglio</p>
+                  <h2 className="text-base font-semibold text-neutral-900">Quota d'iscrizione</h2>
+                  <p className="text-xs text-neutral-400">Kit abbigliamento e tessera FITP — si aggiunge a ogni corso</p>
                 </div>
-                <form onSubmit={cerca} className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-neutral-400">€</span>
                   <input
-                    value={ricerca}
-                    onChange={(e) => setRicerca(e.target.value)}
-                    placeholder="Cerca per codice, nome, telefono…"
-                    className="w-56 rounded-full border border-court/20 px-4 py-1.5 text-sm"
+                    className="w-20 rounded-lg border border-black/[0.08] px-2 py-1.5 text-right text-sm"
+                    defaultValue={quotaIscrizione}
+                    onChange={(e) => setQuotaModificata(e.target.value)}
                   />
                   <button
-                    type="submit"
-                    className="rounded-full bg-court px-4 py-1.5 text-sm font-medium text-white hover:bg-court-dark"
+                    onClick={salvaQuota}
+                    disabled={salvataggio === "quota"}
+                    className="rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-60"
                   >
-                    Cerca
+                    {salvataggio === "quota" ? "Salvo…" : "Salva"}
                   </button>
-                </form>
-              </div>
-
-              <div className="mt-5 overflow-x-auto rounded-3xl bg-white p-2 shadow-sm ring-1 ring-court/5">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="text-xs uppercase tracking-wide text-court-dark/40">
-                      <th className="px-3 pb-3 pt-3 font-medium">Atleta</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Codice</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Contatto</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Corso</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Totale</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Pagamento</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Stato</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Stampa</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-court/5">
-                    {caricamento && (
-                      <tr>
-                        <td colSpan={8} className="py-8 text-center text-court-dark/40">
-                          Caricamento…
-                        </td>
-                      </tr>
-                    )}
-                    {!caricamento && iscrizioni.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="py-8 text-center text-court-dark/40">
-                          Nessuna anagrafica trovata.
-                        </td>
-                      </tr>
-                    )}
-                    {iscrizioni.map((i) => (
-                      <>
-                        <tr
-                          key={i.id}
-                          onClick={() => setEspansa(espansa === i.id ? null : i.id)}
-                          className="cursor-pointer transition-colors hover:bg-chalk"
-                        >
-                          <td className="px-3 py-3">
-                            <div className="flex items-center gap-2.5">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ace text-xs font-semibold text-court-dark">
-                                {iniziali(i.atleta_nome, i.atleta_cognome)}
-                              </span>
-                              <div>
-                                <p className="font-medium text-court-dark">
-                                  {i.atleta_nome} {i.atleta_cognome}
-                                </p>
-                                {i.minorenne && <p className="text-xs text-court-dark/40">minorenne</p>}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-3 py-3 font-medium text-court">{i.codice}</td>
-                          <td className="px-3 py-3 text-court-dark/70">
-                            {i.minorenne ? i.genitore_telefono : i.atleta_telefono}
-                          </td>
-                          <td className="px-3 py-3 text-court-dark/70">
-                            {(i as any).corsi?.nome ?? "-"}
-                            <span className="text-court-dark/40"> · {i.frequenza_settimanale}x/sett.</span>
-                          </td>
-                          <td className="px-3 py-3">
-                            <p className="font-medium text-court-dark">{formattaEuro(i.prezzo_totale)}</p>
-                            {i.numero_rate > 1 && (
-                              <p className="text-xs text-court-dark/40">
-                                {i.numero_rate}×{formattaEuro(i.importo_rata)} + quota
-                              </p>
-                            )}
-                          </td>
-                          <td className="px-3 py-3">
-                            <BarraPagamento riepilogo={mappaPagamenti[i.id]} />
-                          </td>
-                          <td className="px-3 py-3">
-                            {(i as any).confermata ? (
-                              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                                Confermata
-                              </span>
-                            ) : (
-                              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
-                                Da confermare
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3">
-                            {(i as any).stampata ? (
-                              <span className="text-lg" title="Già stampata">
-                                🖨️✅
-                              </span>
-                            ) : (
-                              <span className="text-xs text-court-dark/30">—</span>
-                            )}
-                          </td>
-                        </tr>
-                        {espansa === i.id && (
-                          <tr>
-                            <td colSpan={8} className="rounded-2xl bg-chalk px-4 py-5">
-                              <DettaglioIscrizione
-                                i={i}
-                                onCambiato={() => caricaTutto(ricerca)}
-                                onStampata={() => segnaComeStampata(i.id)}
-                              />
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {vista === "pagamenti" && (
-            <div>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h1 className="font-display text-2xl font-bold text-court-dark">Registro incassi</h1>
-                  <p className="text-sm text-court-dark/50">Ultimi pagamenti registrati, più recenti in alto</p>
                 </div>
-                <button
-                  onClick={generaRate}
-                  disabled={generandoRate}
-                  className="rounded-full border border-court/20 px-4 py-1.5 text-xs font-medium text-court-dark/60 hover:bg-white disabled:opacity-60"
-                >
-                  {generandoRate ? "Genero…" : "Genera rate mancanti"}
-                </button>
               </div>
 
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                <StatCard etichetta="Pagato" valore={formattaEuro(pagamenti.totalePagato)} icona="💰" tono="verde" />
-                <StatCard etichetta="Dovuto" valore={formattaEuro(pagamenti.totaleDovuto)} icona="🧾" />
-                <StatCard etichetta="Scaduto" valore={formattaEuro(pagamenti.totaleScaduto)} icona="⚠️" tono="rosso" />
-              </div>
-
-              <div className="mt-5 overflow-x-auto rounded-3xl bg-white p-2 shadow-sm ring-1 ring-court/5">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="text-xs uppercase tracking-wide text-court-dark/40">
-                      <th className="px-3 pb-3 pt-3 font-medium">Data</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Atleta</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Codice</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Causale</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Metodo</th>
-                      <th className="px-3 pb-3 pt-3 font-medium">Importo</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-court/5">
-                    {incassi.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="py-8 text-center text-court-dark/40">
-                          Nessun incasso registrato ancora.
-                        </td>
-                      </tr>
-                    )}
-                    {incassi.map((inc: any) => (
-                      <tr key={inc.id}>
-                        <td className="px-3 py-2.5 text-court-dark/70">{formattaData(inc.data_pagamento)}</td>
-                        <td className="px-3 py-2.5 text-court-dark">
-                          {inc.iscrizioni?.atleta_nome} {inc.iscrizioni?.atleta_cognome}
-                        </td>
-                        <td className="px-3 py-2.5 font-medium text-court">{inc.iscrizioni?.codice}</td>
-                        <td className="px-3 py-2.5 text-court-dark/70">{inc.tipo}</td>
-                        <td className="px-3 py-2.5 text-court-dark/50">{inc.metodo_pagamento || "—"}</td>
-                        <td className="px-3 py-2.5 font-medium text-emerald-600">{formattaEuro(inc.importo)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {vista === "listino" && (
-            <div>
-              <h1 className="font-display text-2xl font-bold text-court-dark">Listino e quota</h1>
-              <p className="text-sm text-court-dark/50">Prezzi dei corsi e quota d'iscrizione</p>
-
-              <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-court/5">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h2 className="font-display text-lg font-semibold text-court-dark">Quota d'iscrizione</h2>
-                    <p className="text-xs text-court-dark/50">Kit abbigliamento e tessera FITP — si aggiunge a ogni corso</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-court-dark/40">€</span>
-                    <input
-                      className="w-20 rounded-lg border border-court/20 px-2 py-1.5 text-right text-sm"
-                      defaultValue={quotaIscrizione}
-                      onChange={(e) => setQuotaModificata(e.target.value)}
-                    />
-                    <button
-                      onClick={salvaQuota}
-                      disabled={salvataggio === "quota"}
-                      className="rounded-full bg-court px-4 py-1.5 text-sm font-medium text-white hover:bg-court-dark disabled:opacity-60"
-                    >
-                      {salvataggio === "quota" ? "Salvo…" : "Salva"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-6 divide-y divide-court/5 border-t border-court/10 pt-5">
-                  {corsi.map((corso) => (
-                    <div key={corso.id} className="py-4 first:pt-0">
-                      <h3 className="mb-3 text-sm font-semibold text-court-dark">{corso.nome}</h3>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {corso.listini.map((l) => (
-                          <div key={l.id} className="flex items-center justify-between gap-2 rounded-xl bg-chalk px-3 py-2">
-                            <span className="text-sm text-court-dark/70">
-                              {l.frequenza_settimanale}x/sett. — {l.numero_rate === 1 ? "unico" : `${l.numero_rate} rate`}
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm text-court-dark/40">€</span>
-                              <input
-                                className="w-16 rounded-md border border-court/20 bg-white px-1.5 py-1 text-right text-sm"
-                                defaultValue={l.importo_rata}
-                                onChange={(e) => setImportiModificati((p) => ({ ...p, [l.id]: e.target.value }))}
-                              />
-                              <button
-                                onClick={() => salvaImporto(l.id)}
-                                disabled={salvataggio === l.id}
-                                className="text-xs font-medium text-court underline decoration-court/30 underline-offset-2 hover:text-court-dark disabled:opacity-50"
-                              >
-                                {salvataggio === l.id ? "…" : "Salva"}
-                              </button>
-                            </div>
+              <div className="mt-6 divide-y divide-black/[0.05] border-t border-black/[0.05] pt-5">
+                {corsi.map((corso) => (
+                  <div key={corso.id} className="py-4 first:pt-0">
+                    <h3 className="mb-3 text-sm font-semibold text-neutral-900">{corso.nome}</h3>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {corso.listini.map((l) => (
+                        <div key={l.id} className="flex items-center justify-between gap-2 rounded-xl bg-neutral-50 px-3 py-2">
+                          <span className="text-sm text-neutral-500">
+                            {l.frequenza_settimanale}x/sett. — {l.numero_rate === 1 ? "unico" : `${l.numero_rate} rate`}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm text-neutral-400">€</span>
+                            <input
+                              className="w-16 rounded-md border border-black/[0.08] bg-white px-1.5 py-1 text-right text-sm"
+                              defaultValue={l.importo_rata}
+                              onChange={(e) => setImportiModificati((p) => ({ ...p, [l.id]: e.target.value }))}
+                            />
+                            <button
+                              onClick={() => salvaImporto(l.id)}
+                              disabled={salvataggio === l.id}
+                              className="text-xs font-medium text-neutral-900 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-600 disabled:opacity-50"
+                            >
+                              {salvataggio === l.id ? "…" : "Salva"}
+                            </button>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </section>
+                  </div>
+                ))}
+              </div>
+            </section>
 
-              <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-court/5">
-                <h2 className="font-display text-lg font-semibold text-court-dark">Riepilogo taglie kit</h2>
-                <p className="text-xs text-court-dark/50">Totale su tutte le iscrizioni ricevute</p>
-                <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-7">
-                  {ORDINE_TAGLIE.filter((t) => taglie[t]).map((t) => (
-                    <div key={t} className="rounded-xl bg-chalk px-3 py-2.5 text-center">
-                      <p className="font-display text-xl font-bold text-court-dark">{taglie[t]}</p>
-                      <p className="text-xs text-court-dark/50">{t}</p>
-                    </div>
-                  ))}
-                  {taglie["Non indicata"] && (
-                    <div className="rounded-xl bg-amber-50 px-3 py-2.5 text-center">
-                      <p className="font-display text-xl font-bold text-amber-700">{taglie["Non indicata"]}</p>
-                      <p className="text-xs text-amber-700/70">Non indicata</p>
-                    </div>
-                  )}
-                  {Object.keys(taglie).length === 0 && (
-                    <p className="col-span-full text-sm text-court-dark/40">Nessun dato ancora.</p>
-                  )}
-                </div>
-              </section>
-            </div>
-          )}
-        </div>
-      </div>
+            <section className="mt-6 rounded-2xl border border-black/[0.06] bg-white p-6">
+              <h2 className="text-base font-semibold text-neutral-900">Riepilogo taglie kit</h2>
+              <p className="text-xs text-neutral-400">Totale su tutte le iscrizioni ricevute</p>
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-7">
+                {ORDINE_TAGLIE.filter((t) => taglie[t]).map((t) => (
+                  <div key={t} className="rounded-xl bg-neutral-50 px-3 py-2.5 text-center">
+                    <p className="text-lg font-semibold text-neutral-900">{taglie[t]}</p>
+                    <p className="text-xs text-neutral-400">{t}</p>
+                  </div>
+                ))}
+                {taglie["Non indicata"] && (
+                  <div className="rounded-xl bg-amber-50 px-3 py-2.5 text-center">
+                    <p className="text-lg font-semibold text-amber-700">{taglie["Non indicata"]}</p>
+                    <p className="text-xs text-amber-700/70">Non indicata</p>
+                  </div>
+                )}
+                {Object.keys(taglie).length === 0 && (
+                  <p className="col-span-full text-sm text-neutral-400">Nessun dato ancora.</p>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
@@ -641,7 +767,7 @@ export default function DashboardSegreteria() {
 function Sezione({ titolo, children }: { titolo: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-court-dark/50">
+      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
         {titolo}
       </h4>
       <dl className="space-y-1 text-sm">{children}</dl>
@@ -653,8 +779,8 @@ function Riga({ etichetta, valore }: { etichetta: string; valore: any }) {
   if (valore === null || valore === undefined || valore === "") return null;
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-court-dark/50">{etichetta}</dt>
-      <dd className="text-right font-medium text-court-dark">
+      <dt className="text-neutral-400">{etichetta}</dt>
+      <dd className="text-right font-medium text-neutral-900">
         {typeof valore === "boolean" ? (valore ? "Sì" : "No") : String(valore)}
       </dd>
     </div>
@@ -738,28 +864,81 @@ const CAMPI_CONSENSI: typeof CAMPI_TESTO = [
   { chiave: "consenso_whatsapp_gruppi", etichetta: "Gruppi WhatsApp", tipo: "checkbox" },
 ];
 
-const classeInputPiccolo = "w-full rounded-lg border border-court/20 px-2 py-1.5 text-sm";
+const classeInputPiccolo = "w-full rounded-lg border border-black/[0.08] px-2 py-1.5 text-sm";
+
+const CAMPI_CERTIFICATO: Array<{
+  chiave: string;
+  etichetta: string;
+  tipo?: "text" | "date" | "checkbox" | "textarea" | "select";
+  opzioni?: Array<{ valore: string; etichetta: string }>;
+}> = [
+  {
+    chiave: "certificato_tipo",
+    etichetta: "Tipo certificato",
+    tipo: "select",
+    opzioni: [
+      { valore: "agonistico", etichetta: "Agonistico" },
+      { valore: "non_agonistico", etichetta: "Non agonistico" },
+    ],
+  },
+  { chiave: "certificato_scadenza", etichetta: "Scadenza certificato", tipo: "date" },
+];
+
+const CAMPI_TESSERAMENTO: typeof CAMPI_CERTIFICATO = [
+  { chiave: "tesseramento_numero", etichetta: "Numero tessera" },
+  {
+    chiave: "tesseramento_tipo",
+    etichetta: "Tipo tesseramento",
+    tipo: "select",
+    opzioni: [
+      { valore: "agonistico", etichetta: "Agonistico" },
+      { valore: "non_agonistico", etichetta: "Non agonistico" },
+    ],
+  },
+  { chiave: "tesseramento_data", etichetta: "Data tesseramento", tipo: "date" },
+  { chiave: "tesseramento_scadenza", etichetta: "Scadenza tessera", tipo: "date" },
+];
 
 function CampoModifica({
   campo,
   valore,
   onChange,
 }: {
-  campo: { chiave: string; etichetta: string; tipo?: "text" | "date" | "checkbox" | "textarea" };
+  campo: {
+    chiave: string;
+    etichetta: string;
+    tipo?: "text" | "date" | "checkbox" | "textarea" | "select";
+    opzioni?: Array<{ valore: string; etichetta: string }>;
+  };
   valore: any;
   onChange: (v: any) => void;
 }) {
   if (campo.tipo === "checkbox") {
     return (
       <label className="flex items-center justify-between gap-3 text-sm">
-        <span className="text-court-dark/60">{campo.etichetta}</span>
+        <span className="text-neutral-500">{campo.etichetta}</span>
         <input type="checkbox" checked={!!valore} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4" />
+      </label>
+    );
+  }
+  if (campo.tipo === "select") {
+    return (
+      <label className="block text-sm">
+        <span className="mb-1 block text-neutral-500">{campo.etichetta}</span>
+        <select className={classeInputPiccolo} value={valore ?? ""} onChange={(e) => onChange(e.target.value)}>
+          <option value="">—</option>
+          {campo.opzioni?.map((o) => (
+            <option key={o.valore} value={o.valore}>
+              {o.etichetta}
+            </option>
+          ))}
+        </select>
       </label>
     );
   }
   return (
     <label className="block text-sm">
-      <span className="mb-1 block text-court-dark/60">{campo.etichetta}</span>
+      <span className="mb-1 block text-neutral-500">{campo.etichetta}</span>
       {campo.tipo === "textarea" ? (
         <textarea className={classeInputPiccolo} rows={2} value={valore ?? ""} onChange={(e) => onChange(e.target.value)} />
       ) : (
@@ -834,7 +1013,7 @@ function DettaglioIscrizione({
 
   function iniziaModifica() {
     const iniziale: Record<string, any> = {};
-    for (const campo of [...CAMPI_TESTO, ...CAMPI_GENITORE, ...CAMPI_CORSO, ...CAMPI_FATTURAZIONE, ...CAMPI_CONSENSI]) {
+    for (const campo of [...CAMPI_TESTO, ...CAMPI_GENITORE, ...CAMPI_CORSO, ...CAMPI_FATTURAZIONE, ...CAMPI_CONSENSI, ...CAMPI_CERTIFICATO, ...CAMPI_TESSERAMENTO]) {
       iniziale[campo.chiave] = r[campo.chiave];
     }
     setBozza(iniziale);
@@ -871,12 +1050,16 @@ function DettaglioIscrizione({
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
-      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-court/10 pb-4">
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Pallino stato={statoCertificato(r)} />
+        <Pallino stato={statoTesseramento(r)} />
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-black/[0.06] pb-4">
         <button
           onClick={toggleConferma}
           disabled={azioneInCorso}
           className={`rounded-full px-4 py-1.5 text-sm font-medium disabled:opacity-60 ${
-            r.confermata ? "border border-court/20 text-court-dark hover:bg-white" : "bg-court text-white hover:bg-court-dark"
+            r.confermata ? "border border-black/[0.08] text-neutral-900 hover:bg-neutral-50" : "bg-neutral-900 text-white hover:bg-neutral-900"
           }`}
         >
           {r.confermata ? "Annulla conferma" : "Conferma iscrizione"}
@@ -884,7 +1067,7 @@ function DettaglioIscrizione({
 
         <button
           onClick={stampa}
-          className="rounded-full border border-court/20 px-4 py-1.5 text-sm font-medium text-court-dark hover:bg-white"
+          className="rounded-full border border-black/[0.08] px-4 py-1.5 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
         >
           {r.stampata ? "🖨️ Ristampa" : "🖨️ Stampa scheda"}
         </button>
@@ -892,7 +1075,7 @@ function DettaglioIscrizione({
         {!modificaAttiva ? (
           <button
             onClick={iniziaModifica}
-            className="rounded-full border border-court/20 px-4 py-1.5 text-sm font-medium text-court-dark hover:bg-white"
+            className="rounded-full border border-black/[0.08] px-4 py-1.5 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
           >
             Modifica
           </button>
@@ -901,13 +1084,13 @@ function DettaglioIscrizione({
             <button
               onClick={salvaModifiche}
               disabled={azioneInCorso}
-              className="rounded-full bg-court px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+              className="rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
             >
               {azioneInCorso ? "Salvo…" : "Salva modifiche"}
             </button>
             <button
               onClick={() => setModificaAttiva(false)}
-              className="rounded-full border border-court/20 px-4 py-1.5 text-sm font-medium text-court-dark hover:bg-white"
+              className="rounded-full border border-black/[0.08] px-4 py-1.5 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
             >
               Annulla
             </button>
@@ -923,14 +1106,14 @@ function DettaglioIscrizione({
         </button>
       </div>
 
-      <div className="mb-6 overflow-hidden rounded-2xl ring-1 ring-court/10">
+      <div className="mb-6 overflow-hidden rounded-2xl border border-black/[0.06]">
         <div className="flex items-center justify-between bg-navy px-4 py-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-white/70">
             Pagamenti
           </h4>
           <button
             onClick={nuovaRata}
-            className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white hover:bg-white/20"
+            className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white hover:bg-neutral-50/20"
           >
             + Aggiungi rata
           </button>
@@ -938,9 +1121,9 @@ function DettaglioIscrizione({
 
         <div className="bg-white p-4">
           {caricamentoRate ? (
-            <p className="text-sm text-court-dark/40">Caricamento…</p>
+            <p className="text-sm text-neutral-400">Caricamento…</p>
           ) : rate.length === 0 ? (
-            <p className="text-sm text-court-dark/40">
+            <p className="text-sm text-neutral-400">
               Nessuna rata generata per questa iscrizione. Usa "+ Aggiungi rata" per crearne una.
             </p>
           ) : (
@@ -953,28 +1136,28 @@ function DettaglioIscrizione({
                   <div className="mb-4">
                     <div className="flex items-end justify-between">
                       <div>
-                        <p className="font-display text-2xl font-bold text-court-dark">
+                        <p className="font-display text-2xl font-bold text-neutral-900">
                           {formattaEuro(pagato)}{" "}
-                          <span className="text-sm font-normal text-court-dark/40">
+                          <span className="text-sm font-normal text-neutral-400">
                             di {formattaEuro(totale)}
                           </span>
                         </p>
-                        <p className="text-xs text-court-dark/50">
+                        <p className="text-xs text-neutral-400">
                           {rate.filter((x: any) => x.pagata).length} di {rate.length} rate incassate
                         </p>
                       </div>
                       <span
                         className={`font-display text-xl font-bold ${
-                          percentuale >= 100 ? "text-emerald-600" : "text-court"
+                          percentuale >= 100 ? "text-emerald-600" : "text-neutral-900"
                         }`}
                       >
                         {percentuale}%
                       </span>
                     </div>
-                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-court/10">
+                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-neutral-900/10">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          percentuale >= 100 ? "bg-emerald-500" : "bg-court"
+                          percentuale >= 100 ? "bg-emerald-500" : "bg-neutral-900"
                         }`}
                         style={{ width: `${Math.min(100, percentuale)}%` }}
                       />
@@ -988,7 +1171,7 @@ function DettaglioIscrizione({
                   <div
                     key={riga.id}
                     className={`rounded-xl px-3 py-2.5 transition-colors ${
-                      riga.pagata ? "bg-emerald-50" : "bg-chalk"
+                      riga.pagata ? "bg-emerald-50" : "bg-neutral-50"
                     }`}
                   >
                     <div className="flex flex-wrap items-center gap-2.5">
@@ -999,14 +1182,14 @@ function DettaglioIscrizione({
                         className="h-4 w-4 shrink-0"
                       />
                       <input
-                        className="min-w-[9rem] flex-1 border-b border-transparent bg-transparent text-sm font-medium text-court-dark hover:border-court/20 focus:border-court/40 focus:outline-none"
+                        className="min-w-[9rem] flex-1 border-b border-transparent bg-transparent text-sm font-medium text-neutral-900 hover:border-black/[0.08] focus:border-court/40 focus:outline-none"
                         defaultValue={riga.tipo}
                         onBlur={(e) => e.target.value !== riga.tipo && modificaCampoRata(riga.id, "tipo", e.target.value)}
                       />
-                      <span className="text-xs text-court-dark/40">€</span>
+                      <span className="text-xs text-neutral-400">€</span>
                       <input
                         type="number"
-                        className="w-20 border-b border-transparent bg-transparent text-right text-sm font-medium text-court-dark hover:border-court/20 focus:border-court/40 focus:outline-none"
+                        className="w-20 border-b border-transparent bg-transparent text-right text-sm font-medium text-neutral-900 hover:border-black/[0.08] focus:border-court/40 focus:outline-none"
                         defaultValue={riga.importo}
                         onBlur={(e) =>
                           Number(e.target.value) !== Number(riga.importo) &&
@@ -1015,18 +1198,18 @@ function DettaglioIscrizione({
                       />
                       <button
                         onClick={() => rimuoviRata(riga.id)}
-                        className="ml-auto shrink-0 text-court-dark/30 hover:text-red-500"
+                        className="ml-auto shrink-0 text-neutral-900/30 hover:text-red-500"
                         title="Elimina rata"
                       >
                         ✕
                       </button>
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-3 pl-6 text-xs text-court-dark/50">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-3 pl-6 text-xs text-neutral-400">
                       <label className="flex items-center gap-1">
                         Scadenza
                         <input
                           type="date"
-                          className="rounded border border-court/15 bg-white px-1.5 py-0.5 text-court-dark"
+                          className="rounded border border-black/[0.06] bg-white px-1.5 py-0.5 text-neutral-900"
                           defaultValue={riga.scadenza ?? ""}
                           onBlur={(e) =>
                             e.target.value !== (riga.scadenza ?? "") &&
@@ -1040,7 +1223,7 @@ function DettaglioIscrizione({
                             Pagata il
                             <input
                               type="date"
-                              className="rounded border border-court/15 bg-white px-1.5 py-0.5 text-court-dark"
+                              className="rounded border border-black/[0.06] bg-white px-1.5 py-0.5 text-neutral-900"
                               defaultValue={riga.data_pagamento ?? ""}
                               onBlur={(e) =>
                                 e.target.value !== (riga.data_pagamento ?? "") &&
@@ -1051,7 +1234,7 @@ function DettaglioIscrizione({
                           <label className="flex items-center gap-1">
                             Metodo
                             <select
-                              className="rounded border border-court/15 bg-white px-1.5 py-0.5 text-court-dark"
+                              className="rounded border border-black/[0.06] bg-white px-1.5 py-0.5 text-neutral-900"
                               defaultValue={riga.metodo_pagamento ?? ""}
                               onChange={(e) => modificaCampoRata(riga.id, "metodo_pagamento", e.target.value)}
                             >
@@ -1193,6 +1376,36 @@ function DettaglioIscrizione({
                 <Riga etichetta="Foto/video" valore={r.consenso_foto_video} />
                 <Riga etichetta="Gruppi WhatsApp" valore={r.consenso_whatsapp_gruppi} />
                 <Riga etichetta="Versione informativa" valore={r.versione_informativa} />
+              </>
+            )}
+        </Sezione>
+
+        <Sezione titolo="Certificato medico">
+          {modificaAttiva
+            ? CAMPI_CERTIFICATO.map((c) => (
+                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
+              ))
+            : (
+              <>
+                <Riga etichetta="Stato" valore={statoCertificato(r).testo} />
+                <Riga etichetta="Tipo" valore={r.certificato_tipo === "agonistico" ? "Agonistico" : r.certificato_tipo === "non_agonistico" ? "Non agonistico" : null} />
+                <Riga etichetta="Scadenza" valore={formattaData(r.certificato_scadenza)} />
+              </>
+            )}
+        </Sezione>
+
+        <Sezione titolo="Tesseramento FITP">
+          {modificaAttiva
+            ? CAMPI_TESSERAMENTO.map((c) => (
+                <CampoModifica key={c.chiave} campo={c} valore={bozza[c.chiave]} onChange={(v) => setBozza((b) => ({ ...b, [c.chiave]: v }))} />
+              ))
+            : (
+              <>
+                <Riga etichetta="Stato" valore={statoTesseramento(r).testo} />
+                <Riga etichetta="Numero tessera" valore={r.tesseramento_numero} />
+                <Riga etichetta="Tipo" valore={r.tesseramento_tipo === "agonistico" ? "Agonistico" : r.tesseramento_tipo === "non_agonistico" ? "Non agonistico" : null} />
+                <Riga etichetta="Data tesseramento" valore={formattaData(r.tesseramento_data)} />
+                <Riga etichetta="Scadenza tessera" valore={formattaData(r.tesseramento_scadenza)} />
               </>
             )}
         </Sezione>
