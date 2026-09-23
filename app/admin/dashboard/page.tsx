@@ -705,6 +705,7 @@ export default function DashboardSegreteria() {
                     <th className="px-4 pb-3 pt-4 font-medium">Atleta</th>
                     <th className="px-4 pb-3 pt-4 font-medium">Stato</th>
                     <th className="px-4 pb-3 pt-4 font-medium">Numero tessera</th>
+                    <th className="px-4 pb-3 pt-4 font-medium">Società</th>
                     <th className="px-4 pb-3 pt-4 font-medium">Tipo</th>
                     <th className="px-4 pb-3 pt-4 font-medium">Scadenza</th>
                   </tr>
@@ -738,6 +739,21 @@ export default function DashboardSegreteria() {
                             <Pallino stato={stato} />
                           </td>
                           <td className="px-4 py-3 text-neutral-500">{i.tesseramento_numero || "—"}</td>
+                          <td className="px-4 py-3">
+                            {i.tesseramento_societa ? (
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  i.tesseramento_societa === "TP5 ASD"
+                                    ? "bg-purple-50 text-purple-700"
+                                    : "bg-blue-50 text-blue-700"
+                                }`}
+                              >
+                                {i.tesseramento_societa}
+                              </span>
+                            ) : (
+                              <span className="text-neutral-300">—</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-neutral-500">
                             {i.tesseramento_tipo === "agonistico" ? "Agonistico" : i.tesseramento_tipo === "non_agonistico" ? "Non agonistico" : "—"}
                           </td>
@@ -747,7 +763,7 @@ export default function DashboardSegreteria() {
                     })}
                   {iscrizioni.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-neutral-400">
+                      <td colSpan={6} className="py-8 text-center text-neutral-400">
                         Nessuna iscrizione ricevuta ancora.
                       </td>
                     </tr>
@@ -1107,6 +1123,15 @@ const CAMPI_CERTIFICATO: Array<{
 const CAMPI_TESSERAMENTO: typeof CAMPI_CERTIFICATO = [
   { chiave: "tesseramento_numero", etichetta: "Numero tessera" },
   {
+    chiave: "tesseramento_societa",
+    etichetta: "Società",
+    tipo: "select",
+    opzioni: [
+      { valore: "KICKOFF ACADEMY SSD ARL", etichetta: "KICKOFF ACADEMY SSD ARL" },
+      { valore: "TP5 ASD", etichetta: "TP5 ASD" },
+    ],
+  },
+  {
     chiave: "tesseramento_tipo",
     etichetta: "Tipo tesseramento",
     tipo: "select",
@@ -1363,6 +1388,7 @@ function DettaglioIscrizione({
           ) : (
             <dl className="space-y-1 text-sm">
               <Riga etichetta="Numero tessera" valore={r.tesseramento_numero} />
+              <Riga etichetta="Società" valore={r.tesseramento_societa} />
               <Riga
                 etichetta="Tipo"
                 valore={r.tesseramento_tipo === "agonistico" ? "Agonistico" : r.tesseramento_tipo === "non_agonistico" ? "Non agonistico" : null}

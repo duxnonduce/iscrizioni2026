@@ -130,6 +130,7 @@ const CAMPI_MODIFICABILI = new Set([
   "consenso_whatsapp_gruppi",
   "certificato_tipo", "certificato_scadenza",
   "tesseramento_numero", "tesseramento_tipo", "tesseramento_data", "tesseramento_scadenza",
+  "tesseramento_societa",
 ]);
 
 export async function aggiornaIscrizione(id: string, campi: Record<string, unknown>) {

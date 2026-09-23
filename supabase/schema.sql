@@ -215,6 +215,7 @@ create table if not exists iscrizioni (
   tesseramento_tipo text,
   tesseramento_data date,
   tesseramento_scadenza date,
+  tesseramento_societa text,
 
   created_at timestamptz not null default now()
 );
@@ -237,6 +238,7 @@ alter table iscrizioni add column if not exists tesseramento_numero text;
 alter table iscrizioni add column if not exists tesseramento_tipo text; -- 'agonistico' | 'non_agonistico'
 alter table iscrizioni add column if not exists tesseramento_data date;
 alter table iscrizioni add column if not exists tesseramento_scadenza date;
+alter table iscrizioni add column if not exists tesseramento_societa text; -- 'KICKOFF ACADEMY SSD ARL' | 'TP5 ASD'
 
 -- ===================================================================
 -- Gestione pagamenti: una riga per ogni rata (quota + rate del corso)
