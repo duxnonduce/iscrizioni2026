@@ -306,8 +306,14 @@ export default function DashboardSegreteria() {
 
   const punteggioLivello: Record<Livello, number> = { rosso: 0, giallo: 1, verde: 2 };
 
-  const urgentiTesseramento = iscrizioni
-    .filter((i: any) => (mappaPagamenti[i.id]?.pagato ?? 0) > 0 && !i.tesseramento_numero)
+  const pagatoENonTesserati = iscrizioni.filter(
+    (i: any) => (mappaPagamenti[i.id]?.pagato ?? 0) > 0 && !i.tesseramento_numero
+  );
+  const urgentiTesseramento = pagatoENonTesserati
+    .filter((i: any) => statoCertificato(i).livello === "verde")
+    .sort((a: any, b: any) => (mappaPagamenti[b.id]?.pagato ?? 0) - (mappaPagamenti[a.id]?.pagato ?? 0));
+  const inAttesaCertificato = pagatoENonTesserati
+    .filter((i: any) => statoCertificato(i).livello !== "verde")
     .sort((a: any, b: any) => (mappaPagamenti[b.id]?.pagato ?? 0) - (mappaPagamenti[a.id]?.pagato ?? 0));
   const iscrizioniOrdinatePerAllerta = [...iscrizioni].sort((a, b) => {
     const pa = Math.min(punteggioLivello[statoCertificato(a).livello], punteggioLivello[statoTesseramento(a).livello]);
@@ -667,7 +673,7 @@ export default function DashboardSegreteria() {
                 <div className="flex items-center gap-2 px-4 pb-2 pt-4">
                   <span className="text-lg">🚨</span>
                   <h2 className="text-sm font-semibold text-red-800">
-                    Da tesserare con urgenza — hanno già pagato ma non hanno ancora la tessera
+                    Pronti per il tesseramento — hanno pagato e hanno il certificato medico valido
                   </h2>
                 </div>
                 <div className="divide-y divide-red-100">
@@ -692,6 +698,40 @@ export default function DashboardSegreteria() {
                       <span className="shrink-0 text-sm font-semibold text-red-700">
                         {formattaEuro(mappaPagamenti[i.id]?.pagato ?? 0)} pagati
                       </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {inAttesaCertificato.length > 0 && (
+              <div className="mt-5 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50">
+                <div className="flex items-center gap-2 px-4 pb-2 pt-4">
+                  <span className="text-lg">🩺</span>
+                  <h2 className="text-sm font-semibold text-amber-800">
+                    In attesa del certificato — hanno pagato ma non si possono ancora tesserare
+                  </h2>
+                </div>
+                <div className="divide-y divide-amber-100">
+                  {inAttesaCertificato.map((i: any) => (
+                    <button
+                      key={i.id}
+                      onClick={() => {
+                        setVista("iscrizioni");
+                        setEspansa(i.id);
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-amber-100/60"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-court to-court-light text-xs font-semibold text-white">
+                        {iniziali(i.atleta_nome, i.atleta_cognome)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-neutral-900">
+                          {i.atleta_nome} {i.atleta_cognome}
+                        </p>
+                        <p className="text-xs text-neutral-500">{i.corsi?.nome}</p>
+                      </span>
+                      <Pallino stato={statoCertificato(i)} />
                     </button>
                   ))}
                 </div>
