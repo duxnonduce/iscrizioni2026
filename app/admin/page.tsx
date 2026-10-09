@@ -31,53 +31,47 @@ export default function PaginaLoginAdmin() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-navy px-5">
+    <main className="flex min-h-screen items-center justify-center bg-[#0B1020] px-5 font-[family-name:var(--font-dm)] text-[#EEF1FB] [color-scheme:dark]">
       <form
         onSubmit={accedi}
-        className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-sm ring-1 ring-court/10"
+        className="w-full max-w-sm rounded-[28px] border border-white/[0.07] bg-[#121A33] p-8"
       >
-        <img src="/logo-micolani.png" alt="Micolani Tennis" className="mx-auto mb-6 h-14 w-auto" />
-        <h1 className="text-center font-display text-2xl font-bold text-court-dark">
+        <img src="/logo-micolani.png" alt="Micolani Tennis" className="mx-auto mb-6 h-14 w-auto rounded-lg" />
+        <h1 className="text-center font-[family-name:var(--font-sg)] text-3xl font-bold tracking-tight">
           Area segreteria
         </h1>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-7 space-y-4">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-court-dark/80">
-              Email
-            </span>
+            <span className="mb-1.5 block text-sm font-medium text-[#9AA6C7]">Email</span>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-court/20 px-3 py-2.5"
+              className="w-full rounded-2xl border border-white/[0.1] bg-[#0F1630] px-4 py-3 text-[#EEF1FB] focus:border-[#C6F24E]/60 focus:outline-none"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-court-dark/80">
-              Password
-            </span>
+            <span className="mb-1.5 block text-sm font-medium text-[#9AA6C7]">Password</span>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-court/20 px-3 py-2.5"
+              className="w-full rounded-2xl border border-white/[0.1] bg-[#0F1630] px-4 py-3 text-[#EEF1FB] focus:border-[#C6F24E]/60 focus:outline-none"
             />
           </label>
         </div>
 
         {errore && (
-          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-            {errore}
-          </p>
+          <p className="mt-4 rounded-2xl bg-rose-400/15 px-4 py-2.5 text-sm text-rose-300">{errore}</p>
         )}
 
         <button
           type="submit"
           disabled={caricamento}
-          className="mt-6 w-full rounded-full bg-court px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-court-dark disabled:opacity-60"
+          className="mt-7 w-full rounded-full bg-[#C6F24E] px-6 py-3 text-sm font-bold text-[#0B1020] hover:bg-[#d4f77c] disabled:opacity-60"
         >
           {caricamento ? "Accesso in corso…" : "Accedi"}
         </button>
