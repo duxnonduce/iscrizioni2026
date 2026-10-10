@@ -275,3 +275,124 @@ alter table impostazioni enable row level security;
 alter table corsi enable row level security;
 alter table listini enable row level security;
 alter table iscrizioni enable row level security;
+
+-- ===================================================================
+-- Ricevute PDF (Fase 1): società emittenti, numerazione, archivio
+-- ===================================================================
+
+-- Soggetti che incassano. Dati ufficiali modificabili dall'admin (scheda Listino).
+create table if not exists societa_emittenti (
+  id uuid primary key default gen_random_uuid(),
+  codice text unique not null,
+  ragione_sociale text not null,
+  indirizzo text,
+  partita_iva text,
+  codice_fiscale text,
+  prefisso text not null,
+  dicitura text,            -- testo fiscale libero in calce al PDF, a cura del commercialista
+  attiva boolean not null default true,
+  ordine int not null default 0
+);
+
+insert into societa_emittenti (codice, ragione_sociale, indirizzo, partita_iva, codice_fiscale, prefisso, ordine)
+values
+  ('kickoff', 'KICK OFF ACADEMY SOCIETA'' SPORTIVA DILETTANTISTICA A RESPONSABILITA'' LIMITATA',
+   'VIA CADUTI DI NASSIRYA 31 - 73100 - LECCE (LE)', '05035990752', '05035990752', 'MIC', 1),
+  ('tp5', 'TP5 ASD', null, null, null, 'TP5', 2)
+on conflict (codice) do nothing;
+
+-- Un contatore per società e per anno: numerazione progressiva senza duplicati
+create table if not exists contatori_ricevute (
+  societa_id uuid not null references societa_emittenti(id),
+  anno int not null,
+  ultimo_numero int not null default 0,
+  primary key (societa_id, anno)
+);
+
+create table if not exists ricevute (
+  id uuid primary key default gen_random_uuid(),
+  rata_id uuid references rate_pagamento(id) on delete set null,
+  iscrizione_id uuid references iscrizioni(id) on delete set null,
+  societa_id uuid not null references societa_emittenti(id),
+  anno int not null,
+  numero int not null,
+  numero_testo text not null,
+  tipo text not null default 'conferma',      -- 'ricevuta' | 'conferma'
+  data_pagamento date,
+  intestatario text,
+  atleta text,
+  causale text,
+  importo numeric not null,
+  metodo text,
+  operatore text,
+  pdf_path text,                               -- percorso nel bucket privato "ricevute"
+  stato text not null default 'emessa',        -- 'emessa' | 'annullata'
+  whatsapp_stato text not null default 'non_inviata',
+  whatsapp_inviata_il timestamptz,
+  created_at timestamptz not null default now(),
+  unique (societa_id, anno, numero)
+);
+
+-- Una sola ricevuta valida per ogni rata: il doppio clic non crea duplicati
+create unique index if not exists uq_ricevuta_rata_emessa
+  on ricevute (rata_id) where stato = 'emessa' and rata_id is not null;
+create index if not exists idx_ricevute_iscrizione on ricevute (iscrizione_id);
+create index if not exists idx_ricevute_created on ricevute (created_at desc);
+
+alter table societa_emittenti enable row level security;
+alter table contatori_ricevute enable row level security;
+alter table ricevute enable row level security;
+
+-- Assegna numero e crea la ricevuta in un'unica operazione atomica.
+-- Se per la rata esiste già una ricevuta valida, restituisce quella (idempotente).
+create or replace function assegna_ricevuta(
+  p_rata_id uuid, p_iscrizione_id uuid, p_societa_id uuid, p_tipo text,
+  p_data_pagamento date, p_intestatario text, p_atleta text, p_causale text,
+  p_importo numeric, p_metodo text, p_operatore text
+) returns ricevute
+language plpgsql
+as $$
+declare
+  v_esistente ricevute;
+  v_soc societa_emittenti;
+  v_anno int;
+  v_n int;
+  v_nuova ricevute;
+begin
+  perform 1 from rate_pagamento where id = p_rata_id for update;
+
+  select * into v_esistente from ricevute where rata_id = p_rata_id and stato = 'emessa' limit 1;
+  if found then
+    return v_esistente;
+  end if;
+
+  select * into v_soc from societa_emittenti where id = p_societa_id;
+  if not found then
+    raise exception 'Società emittente non trovata';
+  end if;
+
+  v_anno := extract(year from coalesce(p_data_pagamento, current_date))::int;
+
+  insert into contatori_ricevute (societa_id, anno, ultimo_numero)
+  values (p_societa_id, v_anno, 1)
+  on conflict (societa_id, anno)
+  do update set ultimo_numero = contatori_ricevute.ultimo_numero + 1
+  returning ultimo_numero into v_n;
+
+  insert into ricevute (
+    rata_id, iscrizione_id, societa_id, anno, numero, numero_testo, tipo,
+    data_pagamento, intestatario, atleta, causale, importo, metodo, operatore
+  ) values (
+    p_rata_id, p_iscrizione_id, p_societa_id, v_anno, v_n,
+    v_soc.prefisso || '-' || v_anno::text || '-' || lpad(v_n::text, 4, '0'), p_tipo,
+    p_data_pagamento, p_intestatario, p_atleta, p_causale, p_importo, p_metodo, p_operatore
+  ) returning * into v_nuova;
+
+  return v_nuova;
+end;
+$$;
+
+-- Archivio protetto per i PDF (bucket privato: nessun link pubblico)
+insert into storage.buckets (id, name, public)
+values ('ricevute', 'ricevute', false)
+on conflict (id) do nothing;

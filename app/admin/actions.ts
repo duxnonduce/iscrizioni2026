@@ -3,8 +3,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { generaPdfRicevuta } from "@/lib/ricevuta/pdf";
 
-async function verificaSessione() {
+async function verificaSessione(): Promise<string | null> {
   const supabase = createClient();
   const {
     data: { session },
@@ -12,6 +13,7 @@ async function verificaSessione() {
   if (!session) {
     throw new Error("Sessione non valida.");
   }
+  return session.user?.email ?? null;
 }
 
 export async function cercaIscrizioni(ricerca: string) {
@@ -400,4 +402,195 @@ export async function generaRateMancanti() {
   if (error) throw new Error(error.message);
   revalidatePath("/admin/dashboard");
   return { create: daCompletare.length };
+}
+
+
+// ===================================================================
+// Ricevute PDF
+// ===================================================================
+
+const BUCKET_RICEVUTE = "ricevute";
+
+export async function elencaSocieta() {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("societa_emittenti")
+    .select("*")
+    .order("ordine", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+const CAMPI_SOCIETA = new Set(["ragione_sociale", "indirizzo", "partita_iva", "codice_fiscale", "prefisso", "dicitura", "attiva"]);
+
+export async function salvaSocieta(id: string, campi: Record<string, unknown>) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const aggiornamento: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(campi)) {
+    if (CAMPI_SOCIETA.has(k)) aggiornamento[k] = typeof v === "string" && v.trim() === "" ? null : v;
+  }
+  if (aggiornamento.ragione_sociale === null) throw new Error("La ragione sociale è obbligatoria.");
+  if (aggiornamento.prefisso === null) throw new Error("Il prefisso della numerazione è obbligatorio.");
+  const { error } = await supabase.from("societa_emittenti").update(aggiornamento).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/dashboard");
+}
+
+export async function elencoRicevute(limite: number = 300) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("ricevute")
+    .select("*, societa_emittenti(codice, ragione_sociale)")
+    .order("created_at", { ascending: false })
+    .limit(limite);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function ricevutePerIscrizione(iscrizioneId: string) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("ricevute")
+    .select("*, societa_emittenti(codice, ragione_sociale)")
+    .eq("iscrizione_id", iscrizioneId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+// Genera il PDF di una ricevuta già numerata e lo archivia (usata anche per rigenerare, senza cambiare numero)
+async function generaEArchiviaPdf(ricevutaId: string) {
+  const supabase = createAdminClient();
+  const { data: r, error } = await supabase
+    .from("ricevute")
+    .select("*, societa_emittenti(*)")
+    .eq("id", ricevutaId)
+    .single();
+  if (error || !r) throw new Error(error?.message ?? "Ricevuta non trovata.");
+  const soc = (r as any).societa_emittenti;
+
+  const pdf = await generaPdfRicevuta({
+    tipo: r.tipo === "ricevuta" ? "ricevuta" : "conferma",
+    numero: r.numero_testo,
+    dataPagamento: r.data_pagamento,
+    intestatario: r.intestatario ?? "",
+    atleta: r.atleta ?? "",
+    causale: r.causale ?? "",
+    importo: Number(r.importo),
+    metodo: r.metodo,
+    operatore: r.operatore,
+    emessaIl: r.created_at,
+    societa: {
+      ragioneSociale: soc.ragione_sociale,
+      indirizzo: soc.indirizzo,
+      partitaIva: soc.partita_iva,
+      codiceFiscale: soc.codice_fiscale,
+      dicitura: soc.dicitura,
+    },
+  });
+
+  const percorso = `${soc.codice}/${r.anno}/${r.numero_testo}.pdf`;
+  const { error: erroreUpload } = await supabase.storage
+    .from(BUCKET_RICEVUTE)
+    .upload(percorso, pdf, { contentType: "application/pdf", upsert: true });
+  if (erroreUpload) throw new Error(`Archiviazione del PDF non riuscita: ${erroreUpload.message}`);
+
+  const { error: erroreAggiornamento } = await supabase.from("ricevute").update({ pdf_path: percorso }).eq("id", ricevutaId);
+  if (erroreAggiornamento) throw new Error(erroreAggiornamento.message);
+}
+
+export async function emettiRicevuta(rataId: string, societaId: string, tipo: "ricevuta" | "conferma") {
+  const operatore = await verificaSessione();
+  const supabase = createAdminClient();
+
+  const { data: rata, error: erroreRata } = await supabase.from("rate_pagamento").select("*").eq("id", rataId).single();
+  if (erroreRata || !rata) throw new Error("Rata non trovata.");
+  if (!rata.pagata) throw new Error("La ricevuta si può emettere solo per una rata già incassata.");
+
+  const { data: isc, error: erroreIsc } = await supabase
+    .from("iscrizioni")
+    .select("*, corsi(nome)")
+    .eq("id", rata.iscrizione_id)
+    .single();
+  if (erroreIsc || !isc) throw new Error("Iscrizione non trovata.");
+
+  const { data: imp } = await supabase.from("impostazioni").select("stagione_etichetta").eq("id", 1).single();
+  const anno1 = 2000 + Number(imp?.stagione_etichetta ?? "26");
+  const stagione = `${anno1}/${anno1 + 1}`;
+
+  const atleta = `${isc.atleta_nome} ${isc.atleta_cognome}`.trim();
+  let intestatario = atleta;
+  if (!isc.fatturazione_uguale_genitore && isc.fatturazione_intestatario) {
+    intestatario = isc.fatturazione_intestatario;
+  } else if (isc.minorenne && isc.genitore_nome) {
+    intestatario = `${isc.genitore_nome} ${isc.genitore_cognome ?? ""}`.trim();
+  }
+
+  const tipoRata = String(rata.tipo ?? "").replace(/^Corso\s*—\s*/i, "");
+  const causale =
+    rata.tipo === "Quota iscrizione"
+      ? `Quota iscrizione ${stagione}`
+      : `${(isc as any).corsi?.nome ?? "Corso"} ${stagione} — ${tipoRata}`;
+
+  const { data: socCheck } = await supabase
+    .from("societa_emittenti")
+    .select("ragione_sociale, indirizzo, partita_iva, codice_fiscale, attiva")
+    .eq("id", societaId)
+    .single();
+  if (!socCheck || !socCheck.attiva) throw new Error("Società non valida o non attiva.");
+  if (!socCheck.indirizzo || (!socCheck.partita_iva && !socCheck.codice_fiscale)) {
+    throw new Error(
+      `Completa prima i dati ufficiali di "${socCheck.ragione_sociale}" (indirizzo e partita IVA o codice fiscale) nella scheda Listino.`
+    );
+  }
+
+  const { data: ricevuta, error } = await supabase.rpc("assegna_ricevuta", {
+    p_rata_id: rata.id,
+    p_iscrizione_id: isc.id,
+    p_societa_id: societaId,
+    p_tipo: tipo,
+    p_data_pagamento: rata.data_pagamento,
+    p_intestatario: intestatario,
+    p_atleta: atleta,
+    p_causale: causale,
+    p_importo: rata.importo,
+    p_metodo: rata.metodo_pagamento,
+    p_operatore: operatore,
+  });
+  if (error || !ricevuta) throw new Error(error?.message ?? "Impossibile assegnare il numero di ricevuta.");
+
+  // Il numero è già assegnato e salvato: se il PDF fallisce, si può rigenerare senza creare un'altra ricevuta
+  let avviso: string | null = null;
+  try {
+    await generaEArchiviaPdf((ricevuta as any).id);
+  } catch (e) {
+    avviso = e instanceof Error ? e.message : "Generazione del PDF non riuscita.";
+  }
+
+  revalidatePath("/admin/dashboard");
+  return { id: (ricevuta as any).id as string, numero: (ricevuta as any).numero_testo as string, avviso };
+}
+
+export async function rigeneraPdfRicevuta(ricevutaId: string) {
+  await verificaSessione();
+  await generaEArchiviaPdf(ricevutaId);
+  revalidatePath("/admin/dashboard");
+}
+
+// Link temporaneo (60 secondi) per vedere/scaricare il PDF dall'archivio privato
+export async function linkRicevuta(ricevutaId: string) {
+  await verificaSessione();
+  const supabase = createAdminClient();
+  const { data: r, error } = await supabase.from("ricevute").select("pdf_path, numero_testo").eq("id", ricevutaId).single();
+  if (error || !r) throw new Error("Ricevuta non trovata.");
+  if (!r.pdf_path) throw new Error("Il PDF di questa ricevuta non è ancora stato generato.");
+  const { data, error: erroreLink } = await supabase.storage
+    .from(BUCKET_RICEVUTE)
+    .createSignedUrl(r.pdf_path, 60, { download: `${r.numero_testo}.pdf` });
+  if (erroreLink || !data) throw new Error(erroreLink?.message ?? "Impossibile creare il link.");
+  return data.signedUrl;
 }

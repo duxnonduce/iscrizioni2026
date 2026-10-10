@@ -23,6 +23,13 @@ import {
   aggiungiRata,
   eliminaRata,
   mappaPagamentiPerIscrizione,
+  elencaSocieta,
+  salvaSocieta,
+  elencoRicevute,
+  ricevutePerIscrizione,
+  emettiRicevuta,
+  rigeneraPdfRicevuta,
+  linkRicevuta,
 } from "../actions";
 import { formattaEuro } from "@/lib/pricing";
 
@@ -236,6 +243,7 @@ const VISTE = [
   { id: "tesseramenti", etichetta: "Tesseramenti" },
   { id: "pagamenti", etichetta: "Incassi" },
   { id: "fiscale", etichetta: "Fiscale" },
+  { id: "ricevute", etichetta: "Ricevute" },
   { id: "listino", etichetta: "Listino" },
 ] as const;
 
@@ -272,6 +280,72 @@ function RigaPersona({ i, destra, onApri }: { i: any; destra: React.ReactNode; o
 }
 
 
+function SchedaSocieta({
+  s,
+  onSalva,
+}: {
+  s: any;
+  onSalva: (id: string, campi: Record<string, unknown>) => Promise<void>;
+}) {
+  const [v, setV] = useState({
+    ragione_sociale: s.ragione_sociale ?? "",
+    indirizzo: s.indirizzo ?? "",
+    partita_iva: s.partita_iva ?? "",
+    codice_fiscale: s.codice_fiscale ?? "",
+    prefisso: s.prefisso ?? "",
+    dicitura: s.dicitura ?? "",
+  });
+  const [salvando, setSalvando] = useState(false);
+  const completa = !!(v.ragione_sociale && v.indirizzo && (v.partita_iva || v.codice_fiscale));
+  const campo = (chiave: keyof typeof v, etichetta: string, extra = "") => (
+    <label className={`flex flex-col gap-1.5 ${extra}`}>
+      <span className="text-xs font-semibold text-[#9AA6C7]">{etichetta}</span>
+      <input
+        value={v[chiave]}
+        onChange={(e) => setV((prev) => ({ ...prev, [chiave]: e.target.value }))}
+        className={`${inputScuro} !rounded-2xl`}
+      />
+    </label>
+  );
+  return (
+    <div className="rounded-3xl bg-[#19234A] p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <strong className="text-[15px]">{s.codice === "kickoff" ? "Società 1" : "Società 2"}</strong>
+        {completa ? <Pallino stato={{ livello: "verde", testo: "Dati completi" }} /> : <Pallino stato={{ livello: "giallo", testo: "Dati da completare" }} />}
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {campo("ragione_sociale", "Ragione sociale", "sm:col-span-2")}
+        {campo("indirizzo", "Indirizzo / sede", "sm:col-span-2")}
+        {campo("partita_iva", "Partita IVA")}
+        {campo("codice_fiscale", "Codice fiscale")}
+        {campo("prefisso", "Prefisso numerazione (es. MIC)")}
+        <label className="flex flex-col gap-1.5 sm:col-span-2">
+          <span className="text-xs font-semibold text-[#9AA6C7]">
+            Dicitura fiscale in calce (facoltativa — da concordare con il commercialista)
+          </span>
+          <textarea
+            rows={2}
+            value={v.dicitura}
+            onChange={(e) => setV((prev) => ({ ...prev, dicitura: e.target.value }))}
+            className={`${inputScuro} !rounded-2xl`}
+          />
+        </label>
+      </div>
+      <button
+        onClick={async () => {
+          setSalvando(true);
+          await onSalva(s.id, v);
+          setSalvando(false);
+        }}
+        disabled={salvando}
+        className="mt-4 rounded-full bg-[#C6F24E] px-5 py-2 text-sm font-bold text-[#0B1020] hover:bg-[#d4f77c] disabled:opacity-60"
+      >
+        {salvando ? "Salvo…" : "Salva dati"}
+      </button>
+    </div>
+  );
+}
+
 export default function DashboardSegreteria() {
   const router = useRouter();
   const supabase = createClient();
@@ -292,10 +366,13 @@ export default function DashboardSegreteria() {
   const [generandoRate, setGenerandoRate] = useState(false);
   const [mappaPagamenti, setMappaPagamenti] = useState<Awaited<ReturnType<typeof mappaPagamentiPerIscrizione>>>({});
   const [vista, setVista] = useState<Vista>("panoramica");
+  const [ricevute, setRicevute] = useState<any[]>([]);
+  const [societa, setSocieta] = useState<any[]>([]);
+  const [ricercaRicevute, setRicercaRicevute] = useState("");
 
   async function caricaTutto(termine = "") {
     setCaricamento(true);
-    const [risultatiIscrizioni, risultatiCorsi, quota, conteggioTaglie, riepilogoPag, listaIncassi, mappaPag] =
+    const [risultatiIscrizioni, risultatiCorsi, quota, conteggioTaglie, riepilogoPag, listaIncassi, mappaPag, listaRicevute, listaSocieta] =
       await Promise.all([
         cercaIscrizioni(termine),
         elencaCorsiConListini(),
@@ -304,6 +381,8 @@ export default function DashboardSegreteria() {
         riepilogoPagamenti(),
         elencoIncassi(50),
         mappaPagamentiPerIscrizione(),
+        elencoRicevute(300),
+        elencaSocieta(),
       ]);
     setIscrizioni(risultatiIscrizioni);
     setCorsi(risultatiCorsi);
@@ -312,6 +391,8 @@ export default function DashboardSegreteria() {
     setPagamenti(riepilogoPag);
     setIncassi(listaIncassi);
     setMappaPagamenti(mappaPag);
+    setRicevute(listaRicevute);
+    setSocieta(listaSocieta);
     setCaricamento(false);
   }
 
@@ -406,6 +487,42 @@ export default function DashboardSegreteria() {
       setSchedaId(null);
     }
   }, [iscrizioni, caricamento, schedaId]);
+
+  async function apriPdfRicevuta(id: string) {
+    try {
+      const url = await linkRicevuta(id);
+      window.open(url, "_blank");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Impossibile aprire il PDF.");
+    }
+  }
+
+  async function rigeneraRicevuta(id: string) {
+    try {
+      await rigeneraPdfRicevuta(id);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Rigenerazione non riuscita.");
+    }
+    await caricaTutto(ricerca);
+  }
+
+  async function salvaSocietaHandler(id: string, campi: Record<string, unknown>) {
+    try {
+      await salvaSocieta(id, campi);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Salvataggio non riuscito.");
+      return;
+    }
+    await caricaTutto(ricerca);
+  }
+
+  const ricevuteFiltrate = ricevute.filter((x: any) => {
+    const q = ricercaRicevute.trim().toLowerCase();
+    if (!q) return true;
+    return [x.numero_testo, x.intestatario, x.atleta, x.causale, x.operatore, x.metodo]
+      .filter(Boolean)
+      .some((t: string) => t.toLowerCase().includes(q));
+  });
 
   function apri(id: string) {
     setSchedaId(id);
@@ -973,6 +1090,81 @@ export default function DashboardSegreteria() {
           </div>
         )}
 
+        {vista === "ricevute" && (
+          <div className="flex flex-col gap-5">
+            <Titolo
+              sopra="Archivio protetto delle ricevute emesse"
+              titolo="Ricevute"
+              destra={
+                <input
+                  value={ricercaRicevute}
+                  onChange={(e) => setRicercaRicevute(e.target.value)}
+                  aria-label="Cerca una ricevuta"
+                  placeholder="Cerca per numero, cliente, causale…"
+                  className={`${inputScuro} w-72 max-w-full`}
+                />
+              }
+            />
+            <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <Tile etichetta="Emesse" valore={ricevute.filter((x: any) => x.stato === "emessa").length} />
+              <Tile etichetta="Con PDF archiviato" valore={ricevute.filter((x: any) => x.pdf_path).length} tono="verde" />
+              <Tile etichetta="PDF da rigenerare" valore={ricevute.filter((x: any) => !x.pdf_path).length} tono="ambra" />
+              <Tile
+                etichetta="Totale ricevute"
+                valore={formattaEuro(ricevute.filter((x: any) => x.stato === "emessa").reduce((t: number, x: any) => t + Number(x.importo), 0))}
+              />
+            </section>
+            <Pannello className="flex flex-col gap-2.5 !p-4 sm:!p-5">
+              {ricevuteFiltrate.length === 0 && (
+                <p className="p-4 text-sm text-[#9AA6C7]">
+                  {ricevute.length === 0
+                    ? "Nessuna ricevuta emessa ancora. Si emettono dalla scheda di ogni iscritto, su una rata incassata."
+                    : "Nessuna ricevuta corrisponde alla ricerca."}
+                </p>
+              )}
+              {ricevuteFiltrate.map((x: any) => (
+                <div key={x.id} className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-[20px] bg-[#19234A] px-5 py-3.5">
+                  <span className="w-[130px] text-sm text-[#C3CCE8]">{formattaData(x.data_pagamento)}</span>
+                  <span className="w-[130px] text-sm font-bold tracking-wider">{x.numero_testo}</span>
+                  <span className="min-w-[220px] flex-1">
+                    <button
+                      onClick={() => x.iscrizione_id && apri(x.iscrizione_id)}
+                      className="block text-left text-[15px] font-semibold hover:underline"
+                    >
+                      {x.intestatario}
+                    </button>
+                    <span className="text-xs text-[#9AA6C7]">
+                      {x.causale}
+                      {x.atleta && x.atleta !== x.intestatario ? ` · atleta ${x.atleta}` : ""}
+                    </span>
+                  </span>
+                  <span className="w-[90px] text-sm text-[#C3CCE8]">{x.metodo || "—"}</span>
+                  <span className="w-[120px] truncate text-xs text-[#9AA6C7]" title={x.operatore ?? ""}>
+                    {x.operatore || "—"}
+                  </span>
+                  <span className={`${SG} w-[90px] text-right text-lg font-bold text-emerald-300`}>{formattaEuro(x.importo)}</span>
+                  <span className="w-[110px]">
+                    <span className="rounded-full bg-[#26336A] px-2.5 py-1 text-xs font-semibold text-[#C3CCE8]">
+                      {x.whatsapp_stato === "non_inviata" ? "WhatsApp: no" : x.whatsapp_stato}
+                    </span>
+                  </span>
+                  <span className="flex w-[130px] justify-end">
+                    {x.pdf_path ? (
+                      <button onClick={() => apriPdfRicevuta(x.id)} className="rounded-full bg-[#C6F24E] px-4 py-1.5 text-xs font-bold text-[#0B1020] hover:bg-[#d4f77c]">
+                        Apri PDF
+                      </button>
+                    ) : (
+                      <button onClick={() => rigeneraRicevuta(x.id)} className="rounded-full border border-amber-300/40 px-4 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-300/10">
+                        Rigenera PDF
+                      </button>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </Pannello>
+          </div>
+        )}
+
         {vista === "listino" && (
           <div className="flex flex-col gap-5">
             <Titolo sopra="Prezzi dei corsi e quota d'iscrizione" titolo="Listino" />
@@ -997,6 +1189,18 @@ export default function DashboardSegreteria() {
                 >
                   {salvataggio === "quota" ? "Salvo…" : "Salva"}
                 </button>
+              </div>
+            </Pannello>
+
+            <Pannello>
+              <h2 className={`${SG} text-xl font-semibold`}>Società che incassano</h2>
+              <p className="mb-4 text-[13px] text-[#9AA6C7]">
+                Dati ufficiali stampati sulle ricevute PDF. La numerazione è separata per società e per anno (prefisso + anno + numero).
+              </p>
+              <div className="flex flex-col gap-4">
+                {societa.map((so: any) => (
+                  <SchedaSocieta key={so.id} s={so} onSalva={salvaSocietaHandler} />
+                ))}
               </div>
             </Pannello>
 
@@ -1271,6 +1475,10 @@ function DettaglioIscrizione({
   const [azioneInCorso, setAzioneInCorso] = useState(false);
   const [rate, setRate] = useState<Awaited<ReturnType<typeof ottieniRatePagamento>>>([]);
   const [caricamentoRate, setCaricamentoRate] = useState(true);
+  const [ricevuteIsc, setRicevuteIsc] = useState<any[]>([]);
+  const [societaDisponibili, setSocietaDisponibili] = useState<any[]>([]);
+  const [sceltaRicevuta, setSceltaRicevuta] = useState<Record<string, { societa: string; tipo: "ricevuta" | "conferma" }>>({});
+  const [emissione, setEmissione] = useState<string | null>(null);
 
   useEffect(() => {
     let attivo = true;
@@ -1281,10 +1489,60 @@ function DettaglioIscrizione({
         setCaricamentoRate(false);
       }
     });
+    Promise.all([ricevutePerIscrizione(r.id), elencaSocieta()]).then(([rc, so]) => {
+      if (attivo) {
+        setRicevuteIsc(rc);
+        setSocietaDisponibili(so.filter((x: any) => x.attiva));
+      }
+    });
     return () => {
       attivo = false;
     };
   }, [r.id]);
+
+  async function ricaricaRicevute() {
+    setRicevuteIsc(await ricevutePerIscrizione(r.id));
+  }
+
+  function sceltaPer(rataId: string) {
+    return sceltaRicevuta[rataId] ?? { societa: societaDisponibili[0]?.id ?? "", tipo: "conferma" as const };
+  }
+
+  async function emetti(rataId: string) {
+    const scelta = sceltaPer(rataId);
+    if (!scelta.societa) {
+      alert("Seleziona la società che incassa.");
+      return;
+    }
+    setEmissione(rataId);
+    try {
+      const esito = await emettiRicevuta(rataId, scelta.societa, scelta.tipo);
+      if (esito.avviso) {
+        alert(`Ricevuta ${esito.numero} registrata, ma il PDF non è stato generato:\n${esito.avviso}\n\nUsa "Rigenera PDF" per riprovare: il numero resta lo stesso.`);
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Emissione non riuscita.");
+    }
+    await ricaricaRicevute();
+    setEmissione(null);
+  }
+
+  async function apriPdf(id: string) {
+    try {
+      window.open(await linkRicevuta(id), "_blank");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Impossibile aprire il PDF.");
+    }
+  }
+
+  async function rigeneraPdf(id: string) {
+    try {
+      await rigeneraPdfRicevuta(id);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Rigenerazione non riuscita.");
+    }
+    await ricaricaRicevute();
+  }
 
   async function toggleRataPagata(rataId: string, pagataAttuale: boolean) {
     setRate((prev) =>
@@ -1649,6 +1907,67 @@ function DettaglioIscrizione({
                         </label>
                       </div>
                     )}
+                    {riga.pagata && (() => {
+                      const rc: any = ricevuteIsc.find((x: any) => x.rata_id === riga.id && x.stato === "emessa");
+                      const scelta = sceltaPer(riga.id);
+                      const classeSelect =
+                        "rounded border border-white/[0.1] bg-[#0F1630] px-2 py-1 text-xs text-[#EEF1FB] focus:outline-none";
+                      return (
+                        <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-xs text-[#9AA6C7]">
+                          {rc ? (
+                            <>
+                              <span className="inline-flex items-center rounded-full bg-emerald-400/15 px-2.5 py-1 font-semibold text-emerald-300">
+                                Ricevuta {rc.numero_testo}
+                              </span>
+                              {rc.pdf_path ? (
+                                <button onClick={() => apriPdf(rc.id)} className="font-bold text-[#C6F24E] underline underline-offset-2">
+                                  Apri PDF
+                                </button>
+                              ) : (
+                                <button onClick={() => rigeneraPdf(rc.id)} className="font-bold text-amber-300 underline underline-offset-2">
+                                  PDF mancante — rigenera
+                                </button>
+                              )}
+                              <span>· WhatsApp: non ancora inviata</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>Ricevuta:</span>
+                              <select
+                                aria-label="Società che incassa"
+                                className={classeSelect}
+                                value={scelta.societa}
+                                onChange={(e) => setSceltaRicevuta((prev) => ({ ...prev, [riga.id]: { ...scelta, societa: e.target.value } }))}
+                              >
+                                {societaDisponibili.map((so: any) => (
+                                  <option key={so.id} value={so.id}>
+                                    {so.codice === "kickoff" ? "KICK OFF ACADEMY" : so.ragione_sociale}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                aria-label="Tipo di documento"
+                                className={classeSelect}
+                                value={scelta.tipo}
+                                onChange={(e) =>
+                                  setSceltaRicevuta((prev) => ({ ...prev, [riga.id]: { ...scelta, tipo: e.target.value as "ricevuta" | "conferma" } }))
+                                }
+                              >
+                                <option value="conferma">Conferma di pagamento</option>
+                                <option value="ricevuta">Ricevuta di pagamento</option>
+                              </select>
+                              <button
+                                onClick={() => emetti(riga.id)}
+                                disabled={emissione === riga.id}
+                                className="rounded-full bg-[#C6F24E] px-3.5 py-1 text-xs font-bold text-[#0B1020] hover:bg-[#d4f77c] disabled:opacity-60"
+                              >
+                                {emissione === riga.id ? "Emetto…" : "Emetti ricevuta"}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
